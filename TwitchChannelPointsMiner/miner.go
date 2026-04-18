@@ -1435,9 +1435,9 @@ func (m *Miner) formattedStreamerPoints(streamer *entities.Streamer) string {
 
 func formatChannelPoints(points int) string {
 	value := points
-	if value < 0 {
-		value = -value
-	}
+	//if value < 0 {
+	//	value = -value
+	//}
 	switch {
 	case value >= 1_000_000:
 		return formatPointsWithSuffix(value, 1_000_000, "M")

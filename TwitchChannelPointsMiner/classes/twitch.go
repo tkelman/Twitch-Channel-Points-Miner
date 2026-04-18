@@ -340,6 +340,14 @@ func (t *Twitch) LoadChannelPointsContext(streamer *entities.Streamer) (int, err
 	}
 	pointsData := channel.Self.CommunityPoints
 	balance := pointsData.Balance
+	if !channel.CommunityPointsSettings.IsEnabled {
+		// channel points disabled, mark as negative for debugging
+		if balance == 0 {
+			balance -= 1
+		} else {
+			balance *= -1
+		}
+	}
 	streamer.ChannelPoints = balance
 	if len(pointsData.ActiveMultipliers) > 0 {
 		streamer.ActiveMultipliers = pointsData.ActiveMultipliers
