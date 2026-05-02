@@ -725,7 +725,7 @@ func (m *Miner) pickStreamersToWatch(streamers []*entities.Streamer) []*entities
 		if s == nil || !s.IsOnline {
 			continue
 		}
-		if !s.OnlineAt.IsZero() && now.Sub(s.OnlineAt) < 30*time.Second {
+		if !s.OnlineAt.IsZero() && now.Sub(s.OnlineAt) < 0*time.Second {
 			continue
 		}
 		m.refreshStreamForPreference(s)
