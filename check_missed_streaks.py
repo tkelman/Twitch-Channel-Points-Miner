@@ -41,6 +41,11 @@ with (Path(__file__).parent / "log" / "numonline.csv").open("w") as f:
     for (lineno, line) in enumerate(lines):
         off = re.match(r"\[INFO\] (.*): 😴 (.*) \(.* points\) is Offline!", line)
         on  = re.match(r"\[INFO\] (.*): 🥳 (.*) \(.* points\) is Online!",  line)
+        streak = re.match(r".* (.*) \(.* points\) .* \| streak length (\d+).*", line)
+        streamer = ""
+        if streak:
+            streamer = streak.group(1)
+            streaklen = int(streak.group(2))
         loaded = re.match(r"\[INFO\] (.*): ✅ \d+ Streamer loaded! \(.*\)", line)
         timestamp = ""
         if loaded:
@@ -55,6 +60,9 @@ with (Path(__file__).parent / "log" / "numonline.csv").open("w") as f:
                 "streamer": off.group(2),
                 "lineno": lineno
                 })
+            if streak:
+                assert streamer == off.group(2)
+                offlines[-1]["streaklen"] = streaklen
             #print("offline:", offlines[-1])
         elif on:
             numon += 1
@@ -64,6 +72,9 @@ with (Path(__file__).parent / "log" / "numonline.csv").open("w") as f:
                 "streamer": on.group(2),
                 "lineno": lineno
                 })
+            if streak:
+                assert streamer == on.group(2)
+                onlines[-1]["streaklen"] = streaklen
             addtimes = re.match(r".* \| started at (.*) \| streak achievement timestamp (.*)", line)
             if addtimes:
                 #print(addtimes)
@@ -119,8 +130,12 @@ for off in offlines:
                 #    mostrecentonline["timestamp"], "to", timestamp)
             else:
                 maybemissedstreaks += 1
+                zerozero = ""
+                if "streaklen" in off and "streaklen" in mostrecentonline:
+                    if off["streaklen"] == 0 and mostrecentonline["streaklen"] == 0:
+                        zerozero = "streak len 0 -> 0"
                 print("POSSIBLE MISSED STREAK FOR", streamer, "stream from",
-                    mostrecentonline["timestamp"], "to", timestamp)
+                    mostrecentonline["timestamp"], "to", timestamp, zerozero)
         else:
             maintainedstreaksoffline += 1
             #print("maintained streak for", streamer, "stream from",
