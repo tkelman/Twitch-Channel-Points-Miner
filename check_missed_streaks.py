@@ -130,12 +130,14 @@ for off in offlines:
                 #    mostrecentonline["timestamp"], "to", timestamp)
             else:
                 maybemissedstreaks += 1
-                zerozero = ""
+                extra = ""
                 if "streaklen" in off and "streaklen" in mostrecentonline:
                     if off["streaklen"] == 0 and mostrecentonline["streaklen"] == 0:
-                        zerozero = "streak len 0 -> 0"
+                        extra += "streak len 0 -> 0 "
+                if (timestamp - mostrecentonline["timestamp"]).total_seconds() <= 300:
+                    extra += "SHORT"
                 print("POSSIBLE MISSED STREAK FOR", streamer, "stream from",
-                    mostrecentonline["timestamp"], "to", timestamp, zerozero)
+                    mostrecentonline["timestamp"], "to", timestamp, extra)
         else:
             maintainedstreaksoffline += 1
             #print("maintained streak for", streamer, "stream from",
