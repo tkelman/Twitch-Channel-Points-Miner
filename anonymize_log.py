@@ -18,6 +18,7 @@ for (i, s) in enumerate(config_streamers):
     logdata = logdata.replace(" {} ".format(s), " streamer{} ".format(i + 1))
     logdata = logdata.replace(" {} ".format(s.capitalize()), " Streamer{} ".format(i + 1))
     logdata = logdata.replace(" {}:".format(s), " streamer{}:".format(i + 1))
+    logdata = logdata.replace(" {}:".format(s.capitalize()), " Streamer{}:".format(i + 1))
     logdata = logdata.replace(" {}\n".format(s), " streamer{}\n".format(i + 1))
 
 lines = logdata.splitlines()
