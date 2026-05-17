@@ -142,6 +142,14 @@ for off in offlines:
                     mostrecentonline["timestamp"], "to", timestamp, extra)
         else:
             maintainedstreaksoffline += 1
+            if "streaklen" in off and "streaklen" in mostrecentonline:
+                if off["streaklen"] == 0 and mostrecentonline["streaklen"] == 0:
+                    streakregex = r"\[INFO\] (.*): 🚀 \+\d\d0 → " + re.escape(streamer) + r" \(.* points\) - Reason: WATCH_STREAK"
+                    streak = [lines[i] for i in streamrange if re.match(streakregex, lines[i])]
+                    if len(streak) == 0:
+                        print("accrued points for", streamer, "but streak length = 0", file=sys.stderr)
+                    else:
+                        print("maintained streak for", streamer, "but streak length = 0", file=sys.stderr)
             #print("maintained streak for", streamer, "stream from",
             #      mostrecentonline["timestamp"], "to", timestamp)
         #if len(points) > 1:
