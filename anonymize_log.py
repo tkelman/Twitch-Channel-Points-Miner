@@ -12,9 +12,26 @@ with open(sys.argv[1]) as f:
 
 with open("config.json") as f:
     configjson = json.load(f)
-config_streamers = [s.lower() for s in configjson["streamers"]]
+streamers = [s.lower() for s in configjson["streamers"]]
 
-for (i, s) in enumerate(config_streamers):
+already_anonymized = True
+for s in streamers:
+    if " {} ".format(s) in logdata or " {} ".format(s.capitalize()) in logdata:
+        already_anonymized = False
+        break
+
+if already_anonymized:
+    maxnum = len(streamers) + 5000
+    streamers = []
+    for i in range(1, maxnum):
+        if (" streamer{} ".format(i) in logdata or
+            " Streamer{} ".format(i) in logdata or
+            " streamer{}:".format(i) in logdata or
+            " Streamer{}:".format(i) in logdata or
+            " streamer{}\n".format(i) in logdata):
+            streamers.append("streamer{}".format(i))
+
+for (i, s) in enumerate(streamers):
     logdata = logdata.replace(" {} ".format(s), " streamer{} ".format(i + 1))
     logdata = logdata.replace(" {} ".format(s.capitalize()), " Streamer{} ".format(i + 1))
     logdata = logdata.replace(" {}:".format(s), " streamer{}:".format(i + 1))
