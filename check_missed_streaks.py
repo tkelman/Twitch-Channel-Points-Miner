@@ -99,6 +99,7 @@ with (Path(__file__).parent / "log" / "numonline.csv").open("w") as f:
 maybemissedstreaks = 0
 maintainedstreaksoffline = 0
 warmstartedstreaksoffline = 0
+prevofflines = {}
 for off in offlines:
     timestamp = off["timestamp"]
     streamer = off["streamer"]
@@ -120,6 +121,14 @@ for off in offlines:
         createdAt = mostrecentonline.get("createdAt", None)
         achievementAt = mostrecentonline.get("achievementAt", None)
         streamrange = range(mostrecentonline["lineno"], lineno)
+
+        prevoffline = prevofflines.get(streamer, {})
+        if prevoffline.get("lineno", -1) > mostrecentonline["lineno"]:
+            # the most recently online stream already ended earlier in the file
+            # probably duplicated miner session restarted in same log file
+            #print("repeated offline", off)
+            continue
+
         pointsregex = r"\[INFO\] (.*): 🚀 \+1[02] → " + re.escape(streamer) + r" \(.* points\) - Reason: WATCH"
         points = [lines[i] for i in streamrange if re.match(pointsregex, lines[i])]
         #print(points)
@@ -157,6 +166,8 @@ for off in offlines:
     else:
         #print("went online after", timestamp)
         pass
+
+    prevofflines[streamer] = off
 
 
 # check for streams that are still online as of the end of the log file
