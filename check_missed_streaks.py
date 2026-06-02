@@ -145,7 +145,8 @@ for off in offlines:
                         extra += "streak len 0 -> 0 "
                     elif off["streaklen"] == mostrecentonline["streaklen"] + 1:
                         extra += "pubsub outage?"
-                if (timestamp - mostrecentonline["timestamp"]).total_seconds() <= 480:
+                mostrecentontime = mostrecentonline.get("createdAt", mostrecentonline["timestamp"])
+                if (timestamp - mostrecentontime.replace(tzinfo=None)).total_seconds() <= 480:
                     extra += "SHORT"
                 print("POSSIBLE MISSED STREAK FOR", streamer, "stream from",
                     mostrecentonline["timestamp"], "to", timestamp, extra)
