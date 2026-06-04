@@ -160,6 +160,9 @@ for off in offlines:
                         print("accrued points for", streamer, "but streak length = 0", file=sys.stderr)
                     else:
                         print("maintained streak for", streamer, "but streak length = 0", file=sys.stderr)
+                elif off["streaklen"] != mostrecentonline["streaklen"] + 1:
+                    print("accrued points for", streamer, "but streak length changed by",
+                          off["streaklen"] - mostrecentonline["streaklen"])
             #print("maintained streak for", streamer, "stream from",
             #      mostrecentonline["timestamp"], "to", timestamp)
         #if len(points) > 1:
