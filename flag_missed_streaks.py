@@ -18,7 +18,7 @@ for i in [0, 1]:
     for line in lines:
         if "expires at" in line:
             print(line.strip())
-        data = re.match(r".* (.*) \(.* points\) .* \| streak length (\d+).*", line)
+        data = re.match(r".* (.*) \(.* points\) .* \| streak length (-?\d+).*", line)
         if data:
             streamer = data.group(1)
             streaklen = int(data.group(2))
