@@ -32,7 +32,10 @@ for i in [0, 1]:
 
 totaldecrease = 0
 totalincrease = 0
+totalposbefore = 0
+totalposafter = 0
 for streamer, streaklen in streaks[0].items():
+    totalposbefore += max(streaklen, 0)
     if streamer in streaks[1]:
         streaklen2 = streaks[1][streamer]
         if streaklen2 < streaklen:
@@ -44,9 +47,11 @@ for streamer, streaklen in streaks[0].items():
     else:
         print(streamer, "in", sys.argv[1], "but not in", sys.argv[2])
 
-for streamer in streaks[1]:
+for streamer, streaklen in streaks[1].items():
+    totalposafter += max(streaklen, 0)
     if streamer not in streaks[0]:
         print(streamer, "in", sys.argv[2], "but not in", sys.argv[1])
 
 print("total missed streak lengths decreased by", totaldecrease)
 print("total extended streak lengths increased by", totalincrease)
+print("total positive streak lengths", totalposbefore, "->", totalposafter)
