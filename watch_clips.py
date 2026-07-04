@@ -17,7 +17,7 @@ for filename in ("raid_targets.txt", "/mnt/e/Dropbox/twitch_channels.txt"):
         with open(filename) as f:
             extrastreamers += [s.lower() for s in f.read().splitlines()]
 extrastreamers = list(set(extrastreamers) - set(configstreamers)) # remove duplicates
-chunksize = 4000
+chunksize = 4500
 streamers = configstreamers.copy()
 while len(extrastreamers) > chunksize:
     # repeat initial list of streamers every chunksize extras
@@ -37,6 +37,10 @@ if os.path.isfile(watchstreakcache):
         cachejson = json.load(f)
     #for entry in cachejson["entries"]:
     #    channelids[entry["streamer_login"].lower()] = entry["channel_id"]
+    # skipping for now to avoid caching pre-rename usernames
+    # for streamers that change names, the channelid does not change
+    # so we get sometimes confusing results where api calls using
+    # channel id work fine but calls using screen name do not
 
 def gql_payload(operationName, sha256Hash):
     return [
@@ -120,11 +124,10 @@ def get_twitch_clips(streamer, limit=5, filter="ALL_TIME"):
     }    
     return gql_post(payload)
 
-def get_recent_clip(streamer, filter="LAST_DAY", minlength=5):
-    data = get_twitch_clips(streamer, limit=100, filter=filter)
+def get_recent_clip(data, minlength=5):
     assert len(data) == 1
     if data[0] is None or data[0]["data"]["user"] is None:
-        print(streamer, "malformed clips output for filter", filter)
+        print("malformed clips output", data)
         return {}
     clips = sorted(data[0]["data"]["user"]["clips"]["edges"], key=lambda c: c["node"]["createdAt"], reverse=True)
     for c in clips:
@@ -223,20 +226,22 @@ for (i, s) in enumerate(streamers):
               "accumulatedWeeks:", weeklyVisitRewards["accumulatedWeeks"],
               "streamer", i, "of", len(streamers))
     
-    clip = get_recent_clip(s, filter="LAST_DAY", minlength=5)
+    recentclips = get_twitch_clips(s, limit=100, filter="LAST_DAY")
+    clip = get_recent_clip(recentclips, minlength=5)
     if not clip:
         # no clip from last day, warn if streak is expiring
         if not weekly_visited:
             expiresat = streak_expiresat(s)
         if expiresat:
-            clip = get_recent_clip(s, filter="LAST_DAY", minlength=0)
+            clip = get_recent_clip(recentclips, minlength=0)
             if clip:
                 print(s, "recent clips are all short but streak expires at", expiresat)
             else:
                 print(s, "no recent clip but streak expires at", expiresat)
-        clip = get_recent_clip(s, filter="ALL_TIME", minlength=5)
+        oldclips = get_twitch_clips(s, limit=100, filter="ALL_TIME")
+        clip = get_recent_clip(oldclips, minlength=5)
         if not clip:
-            clip = get_recent_clip(s, filter="ALL_TIME", minlength=0)
+            clip = get_recent_clip(oldclips, minlength=0)
             if clip:
                 print(s, "only has short clips, no clips over 5 seconds")
             else:
