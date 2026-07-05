@@ -203,11 +203,13 @@ for (i, s) in enumerate(streamers):
     if not weeklyVisitRewards:
         print(s, "channel points disabled, streamer", i, "of", len(streamers))
         continue
-    
+
+    visited = weeklyVisitRewards["hasEarnedWeeklyRewardThisWeek"] or weeklyVisitRewards["hasVisitedToday"]
     expiresat = None
-    weekly_visited = weeklyVisitRewards["hasEarnedWeeklyRewardThisWeek"] or weeklyVisitRewards["hasVisitedToday"]
-    if weekly_visited:
+    if visited or i % (len(configstreamers) + chunksize) < len(configstreamers):
+        # check for streak expiration all the time for configstreamers
         expiresat = streak_expiresat(s)
+    if visited:
         if not expiresat:
             continue
         print(s, "need to watch recent clip/vod because streak expires at", expiresat)
@@ -225,19 +227,18 @@ for (i, s) in enumerate(streamers):
               weeklyVisitRewards["daysVisitedThisWeek"],
               "accumulatedWeeks:", weeklyVisitRewards["accumulatedWeeks"],
               "streamer", i, "of", len(streamers))
-    
-    recentclips = get_twitch_clips(s, limit=100, filter="LAST_DAY")
-    clip = get_recent_clip(recentclips, minlength=5)
-    if not clip:
-        # no clip from last day, warn if streak is expiring
-        if not weekly_visited:
-            expiresat = streak_expiresat(s)
-        if expiresat:
+
+    clip = {}
+    if expiresat:
+        recentclips = get_twitch_clips(s, limit=100, filter="LAST_DAY")
+        clip = get_recent_clip(recentclips, minlength=5)
+        if not clip:
             clip = get_recent_clip(recentclips, minlength=0)
             if clip:
                 print(s, "recent clips are all short but streak expires at", expiresat)
             else:
                 print(s, "no recent clip but streak expires at", expiresat)
+    if not clip:
         oldclips = get_twitch_clips(s, limit=100, filter="ALL_TIME")
         clip = get_recent_clip(oldclips, minlength=5)
         if not clip:
