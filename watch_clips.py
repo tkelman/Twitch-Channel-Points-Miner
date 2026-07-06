@@ -104,8 +104,7 @@ def reward_list(streamer):
     }
     return gql_post(payload)
 
-def streak_expiresat(streamer):
-    rewardlist = reward_list(streamer)
+def streak_expiresat(rewardlist):
     assert len(rewardlist) == 1
     expiresat = rewardlist[0]["data"]["channel"]["self"]["watchStreakMilestone"]["expiresAt"]
     if expiresat: # parse to a datetime object and convert from utc to local tz
@@ -126,7 +125,7 @@ def get_twitch_clips(streamer, limit=5, filter="ALL_TIME"):
 
 def get_recent_clip(data, minlength=5):
     assert len(data) == 1
-    if data[0] is None or data[0]["data"]["user"] is None:
+    if data[0] is None or data[0].get("data", {}).get("user", {}).get("clips", {}).get("edges") is None:
         print("malformed clips output", data)
         return {}
     clips = sorted(data[0]["data"]["user"]["clips"]["edges"], key=lambda c: c["node"]["createdAt"], reverse=True)
@@ -205,10 +204,15 @@ for (i, s) in enumerate(streamers):
         continue
 
     visited = weeklyVisitRewards["hasEarnedWeeklyRewardThisWeek"] or weeklyVisitRewards["hasVisitedToday"]
+    rewardlist = None
     expiresat = None
     if visited or i % (len(configstreamers) + chunksize) < len(configstreamers):
         # check for streak expiration all the time for configstreamers
-        expiresat = streak_expiresat(s)
+        rewardlist = reward_list(s)
+        expiresat = streak_expiresat(rewardlist)
+    if rewardlist and i % (len(configstreamers) + chunksize) >= len(configstreamers):
+        # todo: also check streak length, curious if anything outside of configstreamers has nonzero streak length
+        pass
     if visited:
         if not expiresat:
             continue
