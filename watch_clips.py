@@ -3,7 +3,7 @@
 # watch most recent clip for every streamer that hasn't incremented
 # weekly rewards for the day/week, or has an expiring streak
 
-import json, os, requests, datetime, random, string, time
+import json, os, requests, datetime, random, string, time, collections
 from base64 import b64encode
 
 with open("config.json") as f:
@@ -82,7 +82,7 @@ def get_id(streamer):
         return None
 
 def channelid(streamer):
-    # use channel id from watch streak cache file if it's there, otherwise query api
+    # use cached channel id if we've saved it before, otherwise query api
     channel_id = channelids.get(streamer)
     if not channel_id:
         channel_id = get_id(streamer)
@@ -104,16 +104,24 @@ def reward_list(streamer):
     }
     return gql_post(payload)
 
+def utctolocal(ts):
+    # parse iso string to a datetime object and convert from utc to local tz
+    if '.' in ts:
+        timeformat = "%Y-%m-%dT%H:%M:%S.%fZ"
+    else:
+        timeformat = "%Y-%m-%dT%H:%M:%SZ"
+    return datetime.datetime.strptime(ts, timeformat).replace(
+        tzinfo=datetime.timezone.utc).astimezone()
+
 def streak_expiresat(rewardlist):
     assert len(rewardlist) == 1
     expiresat = rewardlist[0]["data"]["channel"]["self"]["watchStreakMilestone"]["expiresAt"]
-    if expiresat: # parse to a datetime object and convert from utc to local tz
-        expiresat = datetime.datetime.strptime(expiresat, "%Y-%m-%dT%H:%M:%S.%fZ").replace(
-            tzinfo=datetime.timezone.utc).astimezone()
+    if expiresat:
+        expiresat = utctolocal(expiresat)
     return expiresat
 
 def get_twitch_clips(streamer, limit=5, filter="ALL_TIME"):
-    payload = gql_payload("ClipsCards__User", "90c33f5e6465122fba8f9371e2a97076f9ed06c6fed3788d002ab9eba8f91d88")
+    payload = gql_payload("ClipsCards__User", "1cd671bfa12cec480499c087319f26d21925e9695d1f80225aae6a4354f23088")
     payload[0]["variables"] = {
         "login": streamer,
         "limit": limit,
@@ -132,6 +140,26 @@ def get_recent_clip(data, minlength=5):
     for c in clips:
         if c["node"]["durationSeconds"] > minlength:
             return c
+    return {}
+
+def get_twitch_vods(streamer, limit=5):
+    payload = gql_payload("FilterableVideoTower_Videos", "67004f7881e65c297936f32c75246470629557a393788fb5a69d6d9a25a8fd5f")
+    payload[0]["variables"] = {
+        "channelOwnerLogin": streamer,
+        "limit": limit,
+        "videoSort": "TIME"
+    }
+    return gql_post(payload)
+
+def get_recent_vod(data, minlength=300):
+    assert len(data) == 1
+    if data[0] is None or data[0].get("data", {}).get("user", {}).get("videos", {}).get("edges") is None:
+        print("malformed vods output", data)
+        return {}
+    vods = sorted(data[0]["data"]["user"]["videos"]["edges"], key=lambda c: c["node"]["publishedAt"], reverse=True)
+    for v in vods:
+        if v["node"]["lengthSeconds"] > minlength:
+            return v
     return {}
 
 def create_random_alphanumeric_id(length):
@@ -191,6 +219,33 @@ def send_clip_second_watched(clipnode, play_session_id, seconds_watched):
         {"event": "n_second_play", "properties": properties}
     ])
 
+def send_vod_minute_watched(vodnode):
+    properties = {
+        "channel_id": vodnode["owner"]["id"],
+        "broadcast_id": None,
+        "player": "site",
+        "user_id": channelid(username),
+        "live": False,
+        "channel": vodnode["owner"]["login"],
+        "vod_id": vodnode["id"],
+        "content_mode": "vod",
+    }
+    return spade_post([
+        {"event": "minute-watched", "properties": properties}
+    ])
+
+def increment_vod(vod, queuelength):
+    lastwatched = vod.get("lastwatched", time.monotonic())
+    if ("watchtime" not in vod) or time.monotonic() - lastwatched > 60:
+        print(vod["node"]["owner"]["login"], "watching vod from",
+              utctolocal(vod["node"]["publishedAt"]), "vod queue length", queuelength)
+        send_vod_minute_watched(vod["node"])
+        vod["lastwatched"] = time.monotonic()
+        vod["watchtime"] = vod.get("watchtime", 0) + vod["lastwatched"] - lastwatched
+
+vodqueue = collections.deque()
+vodwatching = None
+
 for (i, s) in enumerate(streamers):
     if not channelid(s):
         print(s, "channel not found, streamer", i, "of", len(streamers))
@@ -198,6 +253,9 @@ for (i, s) in enumerate(streamers):
 
     data = weekly_visit_rewards(s)
     assert len(data) == 1
+    if data[0] is None or "weeklyVisitRewards" not in data[0].get("data", {}).get("channel", {}).get("self", {}):
+        print(s, "malformed weekly rewards output", data)
+        continue
     weeklyVisitRewards = data[0]["data"]["channel"]["self"]["weeklyVisitRewards"]    
     if not weeklyVisitRewards:
         print(s, "channel points disabled, streamer", i, "of", len(streamers))
@@ -232,11 +290,13 @@ for (i, s) in enumerate(streamers):
               "accumulatedWeeks:", weeklyVisitRewards["accumulatedWeeks"],
               "streamer", i, "of", len(streamers))
 
+    need_vod = False
     clip = {}
     if expiresat:
         recentclips = get_twitch_clips(s, limit=100, filter="LAST_DAY")
         clip = get_recent_clip(recentclips, minlength=5)
         if not clip:
+            need_vod = True
             clip = get_recent_clip(recentclips, minlength=0)
             if clip:
                 print(s, "recent clips are all short but streak expires at", expiresat)
@@ -246,16 +306,51 @@ for (i, s) in enumerate(streamers):
         oldclips = get_twitch_clips(s, limit=100, filter="ALL_TIME")
         clip = get_recent_clip(oldclips, minlength=5)
         if not clip:
+            need_vod = True
             clip = get_recent_clip(oldclips, minlength=0)
             if clip:
                 print(s, "only has short clips, no clips over 5 seconds")
+            #else: # check for vods below
+            #    print(s, "no clips available")
+
+    if clip:
+        play_session_id = create_random_alphanumeric_id(32)
+        send_clip_video_play(clip["node"], play_session_id)
+        time.sleep(5)
+        send_clip_second_watched(clip["node"], play_session_id, seconds_watched=5)
+
+    if need_vod:
+        vods = get_twitch_vods(s, limit=100)
+        latestvod = get_recent_vod(vods, minlength=0)
+        if not clip:
+            if latestvod:
+                print(s, "no clips available but vod found")
             else:
-                # todo: check for vods
-                print(s, "no clips available")
-                continue
-    
-    play_session_id = create_random_alphanumeric_id(32)
-    send_clip_video_play(clip["node"], play_session_id)
-    time.sleep(5)
-    send_clip_second_watched(clip["node"], play_session_id, seconds_watched=5)
-    
+                print(s, "no clips or vods available")
+        if latestvod:
+            vodqueue.append(latestvod)
+            if latestvod["node"]["lengthSeconds"] < 300:
+                # if latest vod is short, also try adding an older long vod to the queue
+                longervod = get_recent_vod(vods, minlength=300)
+                if longervod:
+                    vodqueue.append(longervod)
+
+    if not vodwatching and len(vodqueue) > 0:
+        vodwatching = vodqueue.popleft()
+
+    if vodwatching:
+        increment_vod(vodwatching, len(vodqueue))
+
+        if vodwatching["watchtime"] > 300 and len(vodqueue) > 0:
+            vodwatching = vodqueue.popleft()
+        elif vodwatching["watchtime"] > 600 and len(vodqueue) == 0:
+            # stop watching after 10 minutes if queue is empty
+            vodwatching = None
+
+# clean up remaining vod queue after processing all streamers' clips
+while (vodwatching is not None and vodwatching.get("watchtime", 0) <= 300) or len(vodqueue) > 0:
+    time.sleep(31)
+    increment_vod(vodwatching, len(vodqueue))
+
+    if vodwatching["watchtime"] > 300 and len(vodqueue) > 0:
+        vodwatching = vodqueue.popleft()
