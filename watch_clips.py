@@ -113,9 +113,20 @@ def utctolocal(ts):
     return datetime.datetime.strptime(ts, timeformat).replace(
         tzinfo=datetime.timezone.utc).astimezone()
 
+def safeindex(data, indextuple):
+    assert len(data) == 1
+    out = data[0]
+    if out is not None:
+        for i in indextuple:
+            out = out.get(i, {})
+    return out
+
 def streak_expiresat(rewardlist):
-    assert len(rewardlist) == 1
-    expiresat = rewardlist[0]["data"]["channel"]["self"]["watchStreakMilestone"]["expiresAt"]
+    watchstreakmilestone = safeindex(rewardlist, ("data", "channel", "self", "watchStreakMilestone"))
+    if watchstreakmilestone is None or ("expiresAt" not in watchstreakmilestone):
+        print("malformed reward list", rewardlist)
+        return None
+    expiresat = watchstreakmilestone["expiresAt"]
     if expiresat:
         expiresat = utctolocal(expiresat)
     return expiresat
@@ -132,12 +143,12 @@ def get_twitch_clips(streamer, limit=5, filter="ALL_TIME"):
     return gql_post(payload)
 
 def get_recent_clip(data, minlength=5):
-    assert len(data) == 1
-    if data[0] is None or data[0].get("data", {}).get("user", {}).get("clips", {}).get("edges") is None:
+    clips = safeindex(data, ("data", "user", "clips"))
+    if clips is None or clips.get("edges") is None:
         print("malformed clips output", data)
         return {}
-    clips = sorted(data[0]["data"]["user"]["clips"]["edges"], key=lambda c: c["node"]["createdAt"], reverse=True)
-    for c in clips:
+    clipedges = sorted(clips["edges"], key=lambda c: c["node"]["createdAt"], reverse=True)
+    for c in clipedges:
         if c["node"]["durationSeconds"] > minlength:
             return c
     return {}
@@ -152,11 +163,11 @@ def get_twitch_vods(streamer, limit=5):
     return gql_post(payload)
 
 def get_recent_vod(data, minlength=300):
-    assert len(data) == 1
-    if data[0] is None or data[0].get("data", {}).get("user", {}).get("videos", {}).get("edges") is None:
+    videos = safeindex(data, ("data", "user", "videos"))
+    if videos is None or videos.get("edges") is None:
         print("malformed vods output", data)
         return {}
-    vods = sorted(data[0]["data"]["user"]["videos"]["edges"], key=lambda c: c["node"]["publishedAt"], reverse=True)
+    vods = sorted(videos["edges"], key=lambda c: c["node"]["publishedAt"], reverse=True)
     for v in vods:
         if v["node"]["lengthSeconds"] > minlength:
             return v
@@ -252,11 +263,11 @@ for (i, s) in enumerate(streamers):
         continue
 
     data = weekly_visit_rewards(s)
-    assert len(data) == 1
-    if data[0] is None or "weeklyVisitRewards" not in data[0].get("data", {}).get("channel", {}).get("self", {}):
+    data_channel_self = safeindex(data, ("data", "channel", "self"))
+    if data_channel_self is None or ("weeklyVisitRewards" not in data_channel_self):
         print(s, "malformed weekly rewards output", data)
         continue
-    weeklyVisitRewards = data[0]["data"]["channel"]["self"]["weeklyVisitRewards"]    
+    weeklyVisitRewards = data_channel_self["weeklyVisitRewards"]
     if not weeklyVisitRewards:
         print(s, "channel points disabled, streamer", i, "of", len(streamers))
         continue
