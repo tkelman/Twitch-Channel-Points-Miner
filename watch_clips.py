@@ -68,16 +68,24 @@ def gql_post(payload):
     else:
         raise Exception("Failed to fetch data: {} - {}".format(response.status_code, response.text))
 
+def safeindex(data, indextuple):
+    # index into a gql return dict with some robustness for malformed data
+    assert len(data) == 1
+    out = data[0]
+    if out is not None:
+        for i in indextuple:
+            out = out.get(i, {})
+    return out
+
 def get_id(streamer):
     payload = gql_payload("GetIDFromLogin", "94e82a7b1e3c21e186daa73ee2afc4b8f23bade1fbbff6fe8ac133f50a2f58ca")
     payload[0]["variables"] = {
         "login": streamer
     }
     data = gql_post(payload)
-    assert len(data) == 1
-    user = data[0]["data"]["user"]
+    user = safeindex(data, ("data", "user"))
     if user:
-        return user["id"]
+        return user.get("id")
     else:
         return None
 
@@ -112,14 +120,6 @@ def utctolocal(ts):
         timeformat = "%Y-%m-%dT%H:%M:%SZ"
     return datetime.datetime.strptime(ts, timeformat).replace(
         tzinfo=datetime.timezone.utc).astimezone()
-
-def safeindex(data, indextuple):
-    assert len(data) == 1
-    out = data[0]
-    if out is not None:
-        for i in indextuple:
-            out = out.get(i, {})
-    return out
 
 def streak_expiresat(rewardlist):
     watchstreakmilestone = safeindex(rewardlist, ("data", "channel", "self", "watchStreakMilestone"))
