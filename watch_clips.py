@@ -131,7 +131,7 @@ def streak_expiresat(rewardlist):
         expiresat = utctolocal(expiresat)
     return expiresat
 
-def get_twitch_clips(streamer, limit=5, filter="ALL_TIME"):
+def get_twitch_clips(streamer, limit=20, filter="ALL_TIME"):
     payload = gql_payload("ClipsCards__User", "1cd671bfa12cec480499c087319f26d21925e9695d1f80225aae6a4354f23088")
     payload[0]["variables"] = {
         "login": streamer,
@@ -153,7 +153,7 @@ def get_recent_clip(data, minlength=5):
             return c
     return {}
 
-def get_twitch_vods(streamer, limit=5):
+def get_twitch_vods(streamer, limit=20):
     payload = gql_payload("FilterableVideoTower_Videos", "67004f7881e65c297936f32c75246470629557a393788fb5a69d6d9a25a8fd5f")
     payload[0]["variables"] = {
         "channelOwnerLogin": streamer,
@@ -167,7 +167,7 @@ def get_recent_vod(data, minlength=300):
     if videos is None or videos.get("edges") is None:
         print("malformed vods output", data)
         return {}
-    vods = sorted(videos["edges"], key=lambda c: c["node"]["publishedAt"], reverse=True)
+    vods = sorted(videos["edges"], key=lambda v: v["node"]["publishedAt"], reverse=True)
     for v in vods:
         if v["node"]["lengthSeconds"] > minlength:
             return v
@@ -304,7 +304,7 @@ for (i, s) in enumerate(streamers):
     need_vod = False
     clip = {}
     if expiresat:
-        recentclips = get_twitch_clips(s, limit=100, filter="LAST_DAY")
+        recentclips = get_twitch_clips(s, limit=20, filter="LAST_DAY")
         clip = get_recent_clip(recentclips, minlength=5)
         if not clip:
             need_vod = True
@@ -314,7 +314,7 @@ for (i, s) in enumerate(streamers):
             else:
                 print(s, "no recent clip but streak expires at", expiresat)
     if not clip:
-        oldclips = get_twitch_clips(s, limit=100, filter="ALL_TIME")
+        oldclips = get_twitch_clips(s, limit=20, filter="ALL_TIME")
         clip = get_recent_clip(oldclips, minlength=5)
         if not clip:
             need_vod = True
@@ -331,7 +331,7 @@ for (i, s) in enumerate(streamers):
         send_clip_second_watched(clip["node"], play_session_id, seconds_watched=5)
 
     if need_vod:
-        vods = get_twitch_vods(s, limit=100)
+        vods = get_twitch_vods(s, limit=20)
         latestvod = get_recent_vod(vods, minlength=0)
         if not clip:
             if latestvod:
