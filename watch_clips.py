@@ -280,8 +280,11 @@ for (i, s) in enumerate(streamers):
         rewardlist = reward_list(s)
         expiresat = streak_expiresat(rewardlist)
     if rewardlist and i % (len(configstreamers) + chunksize) >= len(configstreamers):
-        # todo: also check streak length, curious if anything outside of configstreamers has nonzero streak length
-        pass
+        streaklength = safeindex(rewardlist, ("data", "channel", "self", "watchStreakMilestone", "watchStreakMilestone", "value"))
+        if not streaklength or not streaklength.isdecimal():
+            print(s, "malformed reward list", rewardlist)
+        elif int(streaklength) > 0:
+            print(s, "unexpectedly nonzero streak length", streaklength)
     if visited:
         if not expiresat:
             continue
@@ -306,8 +309,9 @@ for (i, s) in enumerate(streamers):
     if expiresat:
         recentclips = get_twitch_clips(s, limit=20, filter="LAST_DAY")
         clip = get_recent_clip(recentclips, minlength=5)
+        need_vod = True # always watch a vod for expiring streaks, in case the
+        # most recent clip is from an older stream than the most recent vod
         if not clip:
-            need_vod = True
             clip = get_recent_clip(recentclips, minlength=0)
             if clip:
                 print(s, "recent clips are all short but streak expires at", expiresat)
