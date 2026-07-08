@@ -285,11 +285,11 @@ for (i, s) in enumerate(streamers):
             print(s, "malformed reward list", rewardlist)
         elif int(streaklength) > 0:
             print(s, "unexpectedly nonzero streak length", streaklength)
-    if visited:
-        if not expiresat:
-            continue
+    if visited and not expiresat:
+        continue
+    if expiresat:
         print(s, "need to watch recent clip/vod because streak expires at", expiresat)
-    
+
     if weeklyVisitRewards["hasEarnedWeeklyRewardThisWeek"]:
         print(s, "done for week, daysVisitedThisWeek:", weeklyVisitRewards["daysVisitedThisWeek"],
               "accumulatedWeeks:", weeklyVisitRewards["accumulatedWeeks"],
