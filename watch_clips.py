@@ -273,13 +273,9 @@ for (i, s) in enumerate(streamers):
         continue
 
     visited = weeklyVisitRewards["hasEarnedWeeklyRewardThisWeek"] or weeklyVisitRewards["hasVisitedToday"]
-    rewardlist = None
-    expiresat = None
-    if visited or i % (len(configstreamers) + chunksize) < len(configstreamers):
-        # check for streak expiration all the time for configstreamers
-        rewardlist = reward_list(s)
-        expiresat = streak_expiresat(rewardlist)
-    if rewardlist and i % (len(configstreamers) + chunksize) >= len(configstreamers):
+    rewardlist = reward_list(s)
+    expiresat = streak_expiresat(rewardlist)
+    if i % (len(configstreamers) + chunksize) >= len(configstreamers):
         streaklength = safeindex(rewardlist, ("data", "channel", "self", "watchStreakMilestone", "watchStreakMilestone", "value"))
         if not streaklength or not streaklength.isdecimal():
             print(s, "malformed reward list", rewardlist)
