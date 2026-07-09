@@ -174,6 +174,18 @@ def get_recent_vod(data, minlength=300):
             return v
     return {}
 
+def is_live(streamer):
+    payload = gql_payload("WithIsStreamLiveQuery", "04e46329a6786ff3a81c01c50bfa5d725902507a0deb83b0edbf7abe7a3716ea")
+    payload[0]["variables"] = {
+        "id": channelid(streamer)
+    }
+    data = gql_post(payload)
+    user = safeindex(data, ("data", "user"))
+    if user is None or "stream" not in user:
+        print(streamer, "malformed is_live data", data)
+        return False
+    return user["stream"] is not None
+
 def create_random_alphanumeric_id(length):
     return "".join(
         random.choice(string.ascii_lowercase + string.digits)
@@ -337,6 +349,8 @@ for (i, s) in enumerate(streamers):
         if not clip:
             if latestvod:
                 print(s, "no clips available but vod found")
+            elif is_live(s):
+                print(s, "no clips or vods available but channel is live right now")
             else:
                 print(s, "no clips or vods available")
         if latestvod:
