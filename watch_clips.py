@@ -72,9 +72,10 @@ def safeindex(data, indextuple):
     # index into a gql return dict with some robustness for malformed data
     assert len(data) == 1
     out = data[0]
-    if out is not None:
-        for i in indextuple:
-            out = out.get(i, {})
+    for i in indextuple:
+        if out is None:
+            return out
+        out = out.get(i, {})
     return out
 
 def get_id(streamer):
