@@ -122,10 +122,10 @@ def utctolocal(ts):
     return datetime.datetime.strptime(ts, timeformat).replace(
         tzinfo=datetime.timezone.utc).astimezone()
 
-def streak_expiresat(rewardlist):
+def streak_expiresat(rewardlist, s):
     watchstreakmilestone = safeindex(rewardlist, ("data", "channel", "self", "watchStreakMilestone"))
     if watchstreakmilestone is None or ("expiresAt" not in watchstreakmilestone):
-        print("malformed reward list", rewardlist)
+        print(s, "malformed reward list", rewardlist)
         return None
     expiresat = watchstreakmilestone["expiresAt"]
     if expiresat:
@@ -259,10 +259,23 @@ def send_vod_minute_watched(vodnode):
     ])
 
 def increment_vod(vod, queuelength):
+    s = vod["node"]["owner"]["login"]
+    data = weekly_visit_rewards(s)
+    data_channel_self = safeindex(data, ("data", "channel", "self"))
+    if data_channel_self is None or ("weeklyVisitRewards" not in data_channel_self):
+        print(s, "malformed weekly rewards output", data)
+    else:
+        weeklyVisitRewards = data_channel_self["weeklyVisitRewards"]
+        visited = weeklyVisitRewards["hasEarnedWeeklyRewardThisWeek"] or weeklyVisitRewards["hasVisitedToday"]
+        if visited and not streak_expiresat(reward_list(s), s):
+            print(s, "visited for weekly rewards and streak not expiring, finished with vod watching")
+            vod["watchtime"] = 3600
+            return
+
     lastwatched = vod.get("lastwatched", time.monotonic())
     if ("watchtime" not in vod) or time.monotonic() - lastwatched > 60:
-        print(vod["node"]["owner"]["login"], "watching vod from",
-              utctolocal(vod["node"]["publishedAt"]), "vod queue length", queuelength)
+        print(s, "watching vod from", utctolocal(vod["node"]["publishedAt"]),
+              "vod queue length", queuelength)
         send_vod_minute_watched(vod["node"])
         vod["lastwatched"] = time.monotonic()
         vod["watchtime"] = vod.get("watchtime", 0) + vod["lastwatched"] - lastwatched
@@ -287,7 +300,7 @@ for (i, s) in enumerate(streamers):
 
     visited = weeklyVisitRewards["hasEarnedWeeklyRewardThisWeek"] or weeklyVisitRewards["hasVisitedToday"]
     rewardlist = reward_list(s)
-    expiresat = streak_expiresat(rewardlist)
+    expiresat = streak_expiresat(rewardlist, s)
     if i % (len(configstreamers) + chunksize) >= len(configstreamers):
         streaklength = safeindex(rewardlist, ("data", "channel", "self", "watchStreakMilestone", "watchStreakMilestone", "value"))
         if not streaklength or not streaklength.isdecimal():
