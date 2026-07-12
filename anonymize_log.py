@@ -2,7 +2,7 @@
 
 # usage: ./anonymize_log.py log/filename.log
 
-import json, re, sys
+import json, os, re, sys
 from pathlib import Path
 from datetime import datetime
 
@@ -13,6 +13,33 @@ with open(sys.argv[1]) as f:
 with open("config.json") as f:
     configjson = json.load(f)
 streamers = [s.lower() for s in configjson["streamers"]]
+
+# iterate through watch streak cache file to detect duplicate channel ids
+# append old/removed streamer names for anonymizing older files
+newnames = {}
+oldnames = []
+watchstreakcache = "log/watch_streak_cache.{}.json".format(configjson["username"])
+if os.path.isfile(watchstreakcache):
+    with open(watchstreakcache) as f:
+        cachejson = json.load(f)
+    for entry in cachejson["entries"]:
+        if entry["channel_id"] in newnames:
+            if entry["checked_at"] <= newnames[entry["channel_id"]]["checked_at"]:
+                # this entry is older than what's saved in newnames for same channel id
+                oldnames.append(entry)
+                continue
+            else:
+                # this entry is newer than what's saved in newnames for same channel id
+                # so before overwriting the entry in newnames, back up the older entry
+                # from newnames to oldnames
+                oldnames.append(newnames[entry["channel_id"]])
+        newnames[entry["channel_id"]] = entry
+
+    for oldentry in sorted(oldnames, key=lambda e: e["checked_at"]):
+        oldname = oldentry["streamer_login"].lower()
+        newname = newnames[oldentry["channel_id"]]["streamer_login"].lower()
+        print("rename detected from", oldname, "to", newname)
+        streamers.append(oldname)
 
 already_anonymized = True
 for s in streamers:
