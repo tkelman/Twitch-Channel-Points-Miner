@@ -261,11 +261,10 @@ def send_vod_minute_watched(vodnode):
 def increment_vod(vod, queuelength):
     s = vod["node"]["owner"]["login"]
     data = weekly_visit_rewards(s)
-    data_channel_self = safeindex(data, ("data", "channel", "self"))
-    if data_channel_self is None or ("weeklyVisitRewards" not in data_channel_self):
+    weeklyVisitRewards = safeindex(data, ("data", "channel", "self", "weeklyVisitRewards"))
+    if not weeklyVisitRewards:
         print(s, "malformed weekly rewards output", data)
     else:
-        weeklyVisitRewards = data_channel_self["weeklyVisitRewards"]
         visited = weeklyVisitRewards["hasEarnedWeeklyRewardThisWeek"] or weeklyVisitRewards["hasVisitedToday"]
         if visited and not streak_expiresat(reward_list(s), s):
             print(s, "visited for weekly rewards and streak not expiring, finished with vod watching")
