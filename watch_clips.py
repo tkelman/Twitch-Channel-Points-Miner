@@ -68,11 +68,11 @@ def gql_post(payload):
     else:
         raise Exception("Failed to fetch data: {} - {}".format(response.status_code, response.text))
 
-def safeindex(data, indextuple):
+def safeindex(data, indices):
     # index into a gql return dict with some robustness for malformed data
     assert len(data) == 1
     out = data[0]
-    for i in indextuple:
+    for i in indices:
         if out is None:
             return out
         out = out.get(i, {})
@@ -84,7 +84,7 @@ def get_id(streamer):
         "login": streamer
     }
     data = gql_post(payload)
-    user = safeindex(data, ("data", "user"))
+    user = safeindex(data, ["data", "user"])
     if user:
         return user.get("id")
     else:
@@ -123,7 +123,7 @@ def utctolocal(ts):
         tzinfo=datetime.timezone.utc).astimezone()
 
 def streak_expiresat(rewardlist, s):
-    watchstreakmilestone = safeindex(rewardlist, ("data", "channel", "self", "watchStreakMilestone"))
+    watchstreakmilestone = safeindex(rewardlist, ["data", "channel", "self", "watchStreakMilestone"])
     if watchstreakmilestone is None or ("expiresAt" not in watchstreakmilestone):
         print(s, "malformed reward list", rewardlist)
         return None
@@ -144,7 +144,7 @@ def get_twitch_clips(streamer, limit=20, filter="ALL_TIME"):
     return gql_post(payload)
 
 def get_recent_clip(data, minlength=5):
-    clips = safeindex(data, ("data", "user", "clips"))
+    clips = safeindex(data, ["data", "user", "clips"])
     if clips is None or clips.get("edges") is None:
         print("malformed clips output", data)
         return {}
@@ -164,7 +164,7 @@ def get_twitch_vods(streamer, limit=20):
     return gql_post(payload)
 
 def get_recent_vod(data, minlength=300):
-    videos = safeindex(data, ("data", "user", "videos"))
+    videos = safeindex(data, ["data", "user", "videos"])
     if videos is None or videos.get("edges") is None:
         print("malformed vods output", data)
         return {}
@@ -180,7 +180,7 @@ def is_live(streamer):
         "id": channelid(streamer)
     }
     data = gql_post(payload)
-    user = safeindex(data, ("data", "user"))
+    user = safeindex(data, ["data", "user"])
     if user is None or "stream" not in user:
         print(streamer, "malformed is_live data", data)
         return False
@@ -261,7 +261,7 @@ def send_vod_minute_watched(vodnode):
 def increment_vod(vod, queuelength):
     s = vod["node"]["owner"]["login"]
     data = weekly_visit_rewards(s)
-    weeklyVisitRewards = safeindex(data, ("data", "channel", "self", "weeklyVisitRewards"))
+    weeklyVisitRewards = safeindex(data, ["data", "channel", "self", "weeklyVisitRewards"])
     if not weeklyVisitRewards:
         print(s, "malformed weekly rewards output", data)
     else:
@@ -288,7 +288,7 @@ for (i, s) in enumerate(streamers):
         continue
 
     data = weekly_visit_rewards(s)
-    data_channel_self = safeindex(data, ("data", "channel", "self"))
+    data_channel_self = safeindex(data, ["data", "channel", "self"])
     if data_channel_self is None or ("weeklyVisitRewards" not in data_channel_self):
         print(s, "malformed weekly rewards output", data)
         continue
@@ -301,7 +301,7 @@ for (i, s) in enumerate(streamers):
     rewardlist = reward_list(s)
     expiresat = streak_expiresat(rewardlist, s)
     if i % (len(configstreamers) + chunksize) >= len(configstreamers):
-        streaklength = safeindex(rewardlist, ("data", "channel", "self", "watchStreakMilestone", "watchStreakMilestone", "value"))
+        streaklength = safeindex(rewardlist, ["data", "channel", "self", "watchStreakMilestone", "watchStreakMilestone", "value"])
         if not streaklength or not streaklength.isdecimal():
             print(s, "malformed reward list", rewardlist)
         elif int(streaklength) > 0:
