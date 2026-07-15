@@ -329,6 +329,12 @@ for (i, s) in enumerate(streamers):
     clip = {}
     if expiresat:
         recentclips = get_twitch_clips(s, limit=20, filter="LAST_DAY")
+        attempts = 0
+        while safeindex(recentclips, ["errors"]) and attempts < 15:
+            print(s, "error getting clips", recentclips)
+            time.sleep(1)
+            recentclips = get_twitch_clips(s, limit=20, filter="LAST_DAY")
+            attempts += 1
         clip = get_recent_clip(recentclips, minlength=5)
         need_vod = True # always watch a vod for expiring streaks, in case the
         # most recent clip is from an older stream than the most recent vod
@@ -340,6 +346,12 @@ for (i, s) in enumerate(streamers):
                 print(s, "no recent clip but streak expires at", expiresat)
     if not clip:
         oldclips = get_twitch_clips(s, limit=20, filter="ALL_TIME")
+        attempts = 0
+        while safeindex(oldclips, ["errors"]) and attempts < 15:
+            print(s, "error getting clips", oldclips)
+            time.sleep(1)
+            oldclips = get_twitch_clips(s, limit=20, filter="ALL_TIME")
+            attempts += 1
         clip = get_recent_clip(oldclips, minlength=5)
         if not clip:
             need_vod = True
