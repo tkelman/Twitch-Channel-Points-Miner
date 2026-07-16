@@ -78,12 +78,22 @@ def safeindex(data, indices):
         out = out.get(i, {})
     return out
 
+def gql_post_with_retries(payload, retries=15):
+    attempts = 0
+    data = gql_post(payload)
+    while safeindex(data, ["errors"]) and attempts < retries:
+        print("gql error", data)
+        time.sleep(1)
+        data = gql_post(payload)
+        attempts += 1
+    return data
+
 def get_id(streamer):
     payload = gql_payload("GetIDFromLogin", "94e82a7b1e3c21e186daa73ee2afc4b8f23bade1fbbff6fe8ac133f50a2f58ca")
     payload[0]["variables"] = {
         "login": streamer
     }
-    data = gql_post(payload)
+    data = gql_post_with_retries(payload)
     user = safeindex(data, ["data", "user"])
     if user:
         return user.get("id")
@@ -104,14 +114,14 @@ def weekly_visit_rewards(streamer):
     payload[0]["variables"] = {
         "channelID": channelid(streamer)
     }
-    return gql_post(payload)
+    return gql_post_with_retries(payload)
 
 def reward_list(streamer):
     payload = gql_payload("RewardList", "0b1471876d7647993731b9e3c6a13bf304c67fb31d07f06a945d42286ee377c4")
     payload[0]["variables"] = {
         "channelID": channelid(streamer)
     }
-    return gql_post(payload)
+    return gql_post_with_retries(payload)
 
 def utctolocal(ts):
     # parse iso string to a datetime object and convert from utc to local tz
@@ -141,7 +151,7 @@ def get_twitch_clips(streamer, limit=20, filter="ALL_TIME"):
             "filter": filter # Options: 'LAST_DAY', 'LAST_WEEK', 'LAST_MONTH', 'ALL_TIME'
         }
     }    
-    return gql_post(payload)
+    return gql_post_with_retries(payload)
 
 def get_recent_clip(data, minlength=5):
     clips = safeindex(data, ["data", "user", "clips"])
@@ -161,7 +171,7 @@ def get_twitch_vods(streamer, limit=20):
         "limit": limit,
         "videoSort": "TIME"
     }
-    return gql_post(payload)
+    return gql_post_with_retries(payload)
 
 def get_recent_vod(data, minlength=300):
     videos = safeindex(data, ["data", "user", "videos"])
@@ -179,7 +189,7 @@ def is_live(streamer):
     payload[0]["variables"] = {
         "id": channelid(streamer)
     }
-    data = gql_post(payload)
+    data = gql_post_with_retries(payload)
     user = safeindex(data, ["data", "user"])
     if user is None or "stream" not in user:
         print(streamer, "malformed is_live data", data)
@@ -329,15 +339,10 @@ for (i, s) in enumerate(streamers):
     clip = {}
     if expiresat:
         recentclips = get_twitch_clips(s, limit=20, filter="LAST_DAY")
-        attempts = 0
-        while safeindex(recentclips, ["errors"]) and attempts < 15:
-            print(s, "error getting clips", recentclips)
-            time.sleep(1)
-            recentclips = get_twitch_clips(s, limit=20, filter="LAST_DAY")
-            attempts += 1
         clip = get_recent_clip(recentclips, minlength=5)
         need_vod = True # always watch a vod for expiring streaks, in case the
         # most recent clip is from an older stream than the most recent vod
+        # todo: check against missed streak broadcast id's
         if not clip:
             clip = get_recent_clip(recentclips, minlength=0)
             if clip:
@@ -346,12 +351,6 @@ for (i, s) in enumerate(streamers):
                 print(s, "no recent clip but streak expires at", expiresat)
     if not clip:
         oldclips = get_twitch_clips(s, limit=20, filter="ALL_TIME")
-        attempts = 0
-        while safeindex(oldclips, ["errors"]) and attempts < 15:
-            print(s, "error getting clips", oldclips)
-            time.sleep(1)
-            oldclips = get_twitch_clips(s, limit=20, filter="ALL_TIME")
-            attempts += 1
         clip = get_recent_clip(oldclips, minlength=5)
         if not clip:
             need_vod = True
