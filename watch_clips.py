@@ -66,7 +66,7 @@ def gql_post(payload):
     if response.status_code == 200:
         return response.json()
     else:
-        raise Exception("Failed to fetch data: {} - {}".format(response.status_code, response.text))
+        return [{"errors": "Failed to fetch data: {} - {}".format(response.status_code, response.text)}]
 
 def safeindex(data, indices):
     # index into a gql return dict with some robustness for malformed data
@@ -83,7 +83,7 @@ def gql_post_with_retries(payload, retries=15):
     data = gql_post(payload)
     while safeindex(data, ["errors"]) and attempts < retries:
         print("gql error", data)
-        time.sleep(1)
+        time.sleep(1.2 ** attempts)
         data = gql_post(payload)
         attempts += 1
     return data
