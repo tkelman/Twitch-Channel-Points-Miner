@@ -81,10 +81,14 @@ def safeindex(data, indices):
 def gql_post_with_retries(payload, retries=15):
     attempts = 0
     data = gql_post(payload)
-    while safeindex(data, ["errors"]) and attempts < retries:
+    errors = safeindex(data, ["errors"])
+    if len(errors) == 1 and safeindex(errors, ["message"]) == 'graphql: got nil for non-null "WeeklyVisitRewardTier"':
+        return data
+    while errors and attempts < retries:
         print("gql error", data)
         time.sleep(1.2 ** attempts)
         data = gql_post(payload)
+        errors = safeindex(data, ["errors"])
         attempts += 1
     return data
 
@@ -272,14 +276,14 @@ def increment_vod(vod, queuelength):
     s = vod["node"]["owner"]["login"]
     data = weekly_visit_rewards(s)
     weeklyVisitRewards = safeindex(data, ["data", "channel", "self", "weeklyVisitRewards"])
-    if not weeklyVisitRewards:
-        print(s, "malformed weekly rewards output", data)
-    else:
+    if weeklyVisitRewards:
         visited = weeklyVisitRewards["hasEarnedWeeklyRewardThisWeek"] or weeklyVisitRewards["hasVisitedToday"]
         if visited and not streak_expiresat(reward_list(s), s):
             print(s, "visited for weekly rewards and streak not expiring, finished with vod watching")
             vod["watchtime"] = 3600
             return
+    #else:
+    #    print(s, "malformed weekly rewards output", data)
 
     lastwatched = vod.get("lastwatched", time.monotonic())
     if ("watchtime" not in vod) or time.monotonic() - lastwatched > 60:
@@ -303,11 +307,14 @@ for (i, s) in enumerate(streamers):
         print(s, "malformed weekly rewards output", data)
         continue
     weeklyVisitRewards = data_channel_self["weeklyVisitRewards"]
+    hasEarnedWeeklyRewardThisWeek = safeindex(data, ["data", "channel", "self", "weeklyVisitRewards", "hasEarnedWeeklyRewardThisWeek"])
+    hasVisitedToday = safeindex(data, ["data", "channel", "self", "weeklyVisitRewards", "hasVisitedToday"])
     if not weeklyVisitRewards:
-        print(s, "channel points disabled, streamer", i, "of", len(streamers))
-        continue
+        print(s, "weekly rewards disabled, streamer", i, "of", len(streamers))
+        visited = True
+    else:
+        visited = hasEarnedWeeklyRewardThisWeek or hasVisitedToday
 
-    visited = weeklyVisitRewards["hasEarnedWeeklyRewardThisWeek"] or weeklyVisitRewards["hasVisitedToday"]
     rewardlist = reward_list(s)
     expiresat = streak_expiresat(rewardlist, s)
     if i % (len(configstreamers) + chunksize) >= len(configstreamers):
@@ -321,18 +328,19 @@ for (i, s) in enumerate(streamers):
     if expiresat:
         print(s, "need to watch recent clip/vod because streak expires at", expiresat)
 
-    if weeklyVisitRewards["hasEarnedWeeklyRewardThisWeek"]:
-        print(s, "done for week, daysVisitedThisWeek:", weeklyVisitRewards["daysVisitedThisWeek"],
-              "accumulatedWeeks:", weeklyVisitRewards["accumulatedWeeks"],
+    daysVisitedThisWeek = safeindex(data, ["data", "channel", "self", "weeklyVisitRewards", "daysVisitedThisWeek"])
+    accumulatedWeeks = safeindex(data, ["data", "channel", "self", "weeklyVisitRewards", "accumulatedWeeks"])
+    if hasEarnedWeeklyRewardThisWeek:
+        print(s, "done for week, daysVisitedThisWeek:", daysVisitedThisWeek,
+              "accumulatedWeeks:", accumulatedWeeks,
               "streamer", i, "of", len(streamers))
-    elif weeklyVisitRewards["hasVisitedToday"]:
-        print(s, "visited for today, daysVisitedThisWeek:", weeklyVisitRewards["daysVisitedThisWeek"],
-              "accumulatedWeeks:", weeklyVisitRewards["accumulatedWeeks"],
+    elif hasVisitedToday:
+        print(s, "visited for today, daysVisitedThisWeek:", daysVisitedThisWeek,
+              "accumulatedWeeks:", accumulatedWeeks,
               "streamer", i, "of", len(streamers))
     else:
         print(s, "need to watch any clip/vod for weekly rewards, daysVisitedThisWeek:",
-              weeklyVisitRewards["daysVisitedThisWeek"],
-              "accumulatedWeeks:", weeklyVisitRewards["accumulatedWeeks"],
+              daysVisitedThisWeek, "accumulatedWeeks:", accumulatedWeeks,
               "streamer", i, "of", len(streamers))
 
     need_vod = False
