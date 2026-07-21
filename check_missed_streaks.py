@@ -130,7 +130,7 @@ for off in offlines:
             continue
 
         # note: some streamers have started (late june 2026) giving +20 points for a WATCH, not sure why
-        pointsregex = r"\[INFO\] (.*): 🚀 \+1[02] → " + re.escape(streamer) + r" \(.* points\) - Reason: WATCH"
+        pointsregex = r"\[INFO\] (.*): 🚀 \+[12][02] → " + re.escape(streamer) + r" \(.* points\) - Reason: WATCH"
         points = [lines[i] for i in streamrange if re.match(pointsregex, lines[i])]
         #print(points)
         if len(points) == 0:
@@ -155,7 +155,7 @@ for off in offlines:
             maintainedstreaksoffline += 1
             if "streaklen" in off and "streaklen" in mostrecentonline:
                 if off["streaklen"] == 0 and mostrecentonline["streaklen"] == 0:
-                    streakregex = r"\[INFO\] (.*): 🚀 \+\d\d0 → " + re.escape(streamer) + r" \(.* points\) - Reason: WATCH_STREAK"
+                    streakregex = r"\[INFO\] (.*): 🚀 \+[34][05]0 → " + re.escape(streamer) + r" \(.* points\) - Reason: WATCH_STREAK"
                     streak = [lines[i] for i in streamrange if re.match(streakregex, lines[i])]
                     if len(streak) == 0:
                         print("accrued points for", streamer, "but streak length = 0", file=sys.stderr)
@@ -196,7 +196,7 @@ for on in onlines:
     if nextoffline == {}:
         streamrange = range(lineno, len(lines))
         # note: some streamers have started (late june 2026) giving +20 points for a WATCH, not sure why
-        pointsregex = r"\[INFO\] (.*): 🚀 \+1[02] → " + re.escape(streamer) + r" \(.* points\) - Reason: WATCH"
+        pointsregex = r"\[INFO\] (.*): 🚀 \+[12][02] → " + re.escape(streamer) + r" \(.* points\) - Reason: WATCH"
         points = [lines[i] for i in streamrange if re.match(pointsregex, lines[i])]
         #print(points)
         if len(points) == 0:
