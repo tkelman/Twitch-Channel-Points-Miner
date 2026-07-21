@@ -278,12 +278,12 @@ def increment_vod(vod, queuelength):
     weeklyVisitRewards = safeindex(data, ["data", "channel", "self", "weeklyVisitRewards"])
     if weeklyVisitRewards:
         visited = weeklyVisitRewards["hasEarnedWeeklyRewardThisWeek"] or weeklyVisitRewards["hasVisitedToday"]
-        if visited and not streak_expiresat(reward_list(s), s):
-            print(s, "visited for weekly rewards and streak not expiring, finished with vod watching")
-            vod["watchtime"] = 3600
-            return
-    #else:
-    #    print(s, "malformed weekly rewards output", data)
+    else: # weekly rewards disabled
+        visited = True
+    if visited and not streak_expiresat(reward_list(s), s):
+        print(s, "visited for weekly rewards and streak not expiring, finished with vod watching")
+        vod["watchtime"] = 3600
+        return
 
     lastwatched = vod.get("lastwatched", time.monotonic())
     if ("watchtime" not in vod) or time.monotonic() - lastwatched > 60:
@@ -338,7 +338,7 @@ for (i, s) in enumerate(streamers):
         print(s, "visited for today, daysVisitedThisWeek:", daysVisitedThisWeek,
               "accumulatedWeeks:", accumulatedWeeks,
               "streamer", i, "of", len(streamers))
-    else:
+    elif not visited:
         print(s, "need to watch any clip/vod for weekly rewards, daysVisitedThisWeek:",
               daysVisitedThisWeek, "accumulatedWeeks:", accumulatedWeeks,
               "streamer", i, "of", len(streamers))
