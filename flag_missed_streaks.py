@@ -24,11 +24,15 @@ for i in [0, 1]:
         if data:
             streamer = data.group(1)
             if "is Online!" in data.group(2):
+                if streamer in onlines[i]:
+                    print("unexpectedly double online at", line.strip())
                 onlines[i].add(streamer)
             if "is Offline!" in data.group(2):
                 assert "is Online!" not in data.group(2)
                 if initialized[i]:
-                    onlines[i].remove(streamer)
+                    if streamer not in onlines[i]:
+                        print("unexpectedly double offline at", line.strip())
+                    onlines[i].discard(streamer)
                 else:
                     assert streamer not in onlines[i]
             streaklen = int(data.group(3))
@@ -71,3 +75,4 @@ print("total positive streak lengths", totalposbefore, "->", totalposafter)
 
 print("streamers that went offline between end of first file and start of second:", onlines[0] - onlines[1])
 print("streamers that went online between end of first file and start of second:", onlines[1] - onlines[0])
+print("total streamers online at both end of first file and start of second:", len(onlines[0] & onlines[1]))
