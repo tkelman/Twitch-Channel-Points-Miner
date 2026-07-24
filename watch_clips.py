@@ -343,6 +343,7 @@ for (i, s) in enumerate(streamers):
 
     need_vod = False
     clip = {}
+    extraclips = []
     if expiresat:
         recentclips = get_twitch_clips(s, limit=20, filter="LAST_DAY")
         clip = get_recent_clip(recentclips, minlength=5)
@@ -356,8 +357,15 @@ for (i, s) in enumerate(streamers):
                 print(s, "no recent clip but streak expires at", expiresat)
         if clip and clip["node"]["broadcastIdentifier"]["id"] not in missedstreamids:
             print(s, "found recent clip but broadcast id does not match missed streams")
-            # todo: watch a different or multiple clips to better hit missed broadcast id
+            for extraclip in safeindex(recentclips, ["data", "user", "clips", "edges"]):
+                if extraclip["node"]["broadcastIdentifier"]["id"] in missedstreamids:
+                    extraclips.append(extraclip)
     if not clip:
+        if expiresat:
+            lastweekclips = get_twitch_clips(s, limit=20, filter="LAST_WEEK")
+            for extraclip in safeindex(lastweekclips, ["data", "user", "clips", "edges"]) or []:
+                if extraclip["node"]["broadcastIdentifier"]["id"] in missedstreamids:
+                    extraclips.append(extraclip)
         oldclips = get_twitch_clips(s, limit=20, filter="ALL_TIME")
         clip = get_recent_clip(oldclips, minlength=5)
         if not clip:
@@ -373,6 +381,14 @@ for (i, s) in enumerate(streamers):
         send_clip_video_play(clip["node"], play_session_id)
         time.sleep(5)
         send_clip_second_watched(clip["node"], play_session_id, seconds_watched=5)
+
+    if len(extraclips) > 0:
+        print(s, "watching", len(extraclips), "extra clips to get correct broadcast id from missed streams")
+    for extraclip in extraclips:
+        play_session_id = create_random_alphanumeric_id(32)
+        send_clip_video_play(extraclip["node"], play_session_id)
+        time.sleep(5)
+        send_clip_second_watched(extraclip["node"], play_session_id, seconds_watched=5)
 
     if need_vod:
         vods = get_twitch_vods(s, limit=20)
@@ -393,7 +409,7 @@ for (i, s) in enumerate(streamers):
                     vodqueue.append(longervod)
             if len(missedstreamids) > 0 and latestvod["node"]["broadcastIdentifier"]["id"] not in missedstreamids:
                 print(s, "most recent vod broadcast id does not match missed streams")
-                for vod in safeindex(vods, ["data", "user", "videos", "edges"]) or []:
+                for vod in safeindex(vods, ["data", "user", "videos", "edges"]):
                     if vod["node"]["broadcastIdentifier"]["id"] in missedstreamids:
                         vodqueue.append(vod)
 
