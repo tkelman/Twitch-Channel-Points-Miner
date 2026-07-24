@@ -36,7 +36,9 @@ for i in [0, 1]:
                 else:
                     assert streamer not in onlines[i]
             streaklen = int(data.group(3))
-            if not initialized[i]:
+            if initialized[i]:
+                assert streamer in streaks[i]
+            else:
                 if streamer in streaks[i]:
                     print(streamer, "repeated multiple times in", sys.argv[i + 1])
                     assert streaks[i][streamer] == streaklen

@@ -28,8 +28,7 @@ if os.path.isfile(watchstreakcache):
                 # this entry is older than what's saved in newnames for same channel id
                 oldnames.append(entry)
                 continue
-            else:
-                # this entry is newer than what's saved in newnames for same channel id
+            else: # this entry is newer than what's saved in newnames for same channel id
                 # so before overwriting the entry in newnames, back up the older entry
                 # from newnames to oldnames
                 oldnames.append(newnames[entry["channel_id"]])
