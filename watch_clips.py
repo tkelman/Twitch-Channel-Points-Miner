@@ -157,16 +157,18 @@ def get_twitch_clips(streamer, limit=20, filter="ALL_TIME"):
     }    
     return gql_post_with_retries(payload)
 
-def get_recent_clip(data, minlength=5):
-    clips = safeindex(data, ["data", "user", "clips"])
-    if clips is None or clips.get("edges") is None:
-        print("malformed clips output", data)
+def get_recent_template(data, minlength, mode, sortkey, lengthkey):
+    edges = safeindex(data, ["data", "user", mode, "edges"])
+    if edges is None:
+        print("malformed", mode, "output", data)
         return {}
-    clipedges = sorted(clips["edges"], key=lambda c: c["node"]["createdAt"], reverse=True)
-    for c in clipedges:
-        if c["node"]["durationSeconds"] > minlength:
-            return c
+    for edge in sorted(edges, key=lambda x: x["node"][sortkey], reverse=True):
+        if edge["node"][lengthkey] > minlength:
+            return edge
     return {}
+
+def get_recent_clip(data, minlength=5):
+    return get_recent_template(data, minlength, "clips", "createdAt", "durationSeconds")
 
 def get_twitch_vods(streamer, limit=20):
     payload = gql_payload("FilterableVideoTower_Videos", "67004f7881e65c297936f32c75246470629557a393788fb5a69d6d9a25a8fd5f")
@@ -178,15 +180,7 @@ def get_twitch_vods(streamer, limit=20):
     return gql_post_with_retries(payload)
 
 def get_recent_vod(data, minlength=300):
-    videos = safeindex(data, ["data", "user", "videos"])
-    if videos is None or videos.get("edges") is None:
-        print("malformed vods output", data)
-        return {}
-    vods = sorted(videos["edges"], key=lambda v: v["node"]["publishedAt"], reverse=True)
-    for v in vods:
-        if v["node"]["lengthSeconds"] > minlength:
-            return v
-    return {}
+    return get_recent_template(data, minlength, "videos", "publishedAt", "lengthSeconds")
 
 def is_live(streamer):
     payload = gql_payload("WithIsStreamLiveQuery", "04e46329a6786ff3a81c01c50bfa5d725902507a0deb83b0edbf7abe7a3716ea")
@@ -327,6 +321,10 @@ for (i, s) in enumerate(streamers):
         continue
     if expiresat:
         print(s, "need to watch recent clip/vod because streak expires at", expiresat)
+    missedstreamids = []
+    for stream in safeindex(rewardlist, ["data", "channel", "self", "watchStreakMilestone", "missedStreams"]) or []:
+        for id in stream["broadcastIdentifiers"]:
+            missedstreamids.append(id["id"])
 
     daysVisitedThisWeek = safeindex(data, ["data", "channel", "self", "weeklyVisitRewards", "daysVisitedThisWeek"])
     accumulatedWeeks = safeindex(data, ["data", "channel", "self", "weeklyVisitRewards", "accumulatedWeeks"])
@@ -350,13 +348,15 @@ for (i, s) in enumerate(streamers):
         clip = get_recent_clip(recentclips, minlength=5)
         need_vod = True # always watch a vod for expiring streaks, in case the
         # most recent clip is from an older stream than the most recent vod
-        # todo: check against missed streak broadcast id's
         if not clip:
             clip = get_recent_clip(recentclips, minlength=0)
             if clip:
                 print(s, "recent clips are all short but streak expires at", expiresat)
             else:
                 print(s, "no recent clip but streak expires at", expiresat)
+        if clip and clip["node"]["broadcastIdentifier"]["id"] not in missedstreamids:
+            print(s, "found recent clip but broadcast id does not match missed streams")
+            # todo: watch a different or multiple clips to better hit missed broadcast id
     if not clip:
         oldclips = get_twitch_clips(s, limit=20, filter="ALL_TIME")
         clip = get_recent_clip(oldclips, minlength=5)
@@ -391,6 +391,11 @@ for (i, s) in enumerate(streamers):
                 longervod = get_recent_vod(vods, minlength=300)
                 if longervod:
                     vodqueue.append(longervod)
+            if len(missedstreamids) > 0 and latestvod["node"]["broadcastIdentifier"]["id"] not in missedstreamids:
+                print(s, "most recent vod broadcast id does not match missed streams")
+                for vod in safeindex(vods, ["data", "user", "videos", "edges"]) or []:
+                    if vod["node"]["broadcastIdentifier"]["id"] in missedstreamids:
+                        vodqueue.append(vod)
 
     if not vodwatching and len(vodqueue) > 0:
         vodwatching = vodqueue.popleft()
