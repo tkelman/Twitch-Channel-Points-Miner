@@ -154,7 +154,8 @@ def get_twitch_clips(streamer, limit=20, filter="ALL_TIME"):
         "criteria": {
             "filter": filter # Options: 'LAST_DAY', 'LAST_WEEK', 'LAST_MONTH', 'ALL_TIME'
         }
-    }    
+    }
+    # todo: proper pagination
     return gql_post_with_retries(payload)
 
 def get_recent_template(data, minlength, mode, sortkey, lengthkey):
@@ -177,6 +178,7 @@ def get_twitch_vods(streamer, limit=20):
         "limit": limit,
         "videoSort": "TIME"
     }
+    # todo: proper pagination
     return gql_post_with_retries(payload)
 
 def get_recent_vod(data, minlength=300):
@@ -384,11 +386,14 @@ for (i, s) in enumerate(streamers):
 
     if len(extraclips) > 0:
         print(s, "watching", len(extraclips), "extra clips to get correct broadcast id from missed streams")
-    for extraclip in extraclips:
+    for (j, extraclip) in enumerate(extraclips):
         play_session_id = create_random_alphanumeric_id(32)
         send_clip_video_play(extraclip["node"], play_session_id)
         time.sleep(5)
         send_clip_second_watched(extraclip["node"], play_session_id, seconds_watched=5)
+        if not streak_expiresat(reward_list(s), s):
+            print(s, "finishing early after", j + 1, "extra clips")
+            break
 
     if need_vod:
         vods = get_twitch_vods(s, limit=20)
