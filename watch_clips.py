@@ -17,7 +17,7 @@ for filename in ("raid_targets.txt", "/mnt/e/Dropbox/twitch_channels.txt"):
         with open(filename) as f:
             extrastreamers += [s.lower() for s in f.read().splitlines()]
 extrastreamers = list(set(extrastreamers) - set(configstreamers)) # remove duplicates
-chunksize = 4500
+chunksize = 5000
 streamers = configstreamers.copy()
 while len(extrastreamers) > chunksize:
     # repeat initial list of streamers every chunksize extras
