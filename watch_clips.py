@@ -146,43 +146,64 @@ def streak_expiresat(rewardlist, s):
         expiresat = utctolocal(expiresat)
     return expiresat
 
-def get_twitch_clips(streamer, limit=20, filter="ALL_TIME"):
+def get_twitch_clips(streamer, limit=20, filter="ALL_TIME", cursor=""):
     payload = gql_payload("ClipsCards__User", "1cd671bfa12cec480499c087319f26d21925e9695d1f80225aae6a4354f23088")
     payload[0]["variables"] = {
         "login": streamer,
         "limit": limit,
         "criteria": {
             "filter": filter # Options: 'LAST_DAY', 'LAST_WEEK', 'LAST_MONTH', 'ALL_TIME'
-        }
+        },
+        "cursor": cursor
     }
-    # todo: proper pagination
     return gql_post_with_retries(payload)
 
-def get_recent_template(data, minlength, mode, sortkey, lengthkey):
+def get_paginated_template(subfunction, mode, streamer, limit, filter):
+    data = subfunction(streamer, limit, filter)
+    hasnextpage = safeindex(data, ["data", "user", mode, "pageInfo", "hasNextPage"])
+    alledges = []
+    while hasnextpage:
+        edges = safeindex(data, ["data", "user", mode, "edges"])
+        if edges is None:
+            break
+        alledges += edges
+        data = subfunction(streamer, limit, filter, cursor=edges[-1]["cursor"])
+        hasnextpage = safeindex(data, ["data", "user", mode, "pageInfo", "hasNextPage"])
+
     edges = safeindex(data, ["data", "user", mode, "edges"])
-    if edges is None:
-        print("malformed", mode, "output", data)
-        return {}
-    for edge in sorted(edges, key=lambda x: x["node"][sortkey], reverse=True):
-        if edge["node"][lengthkey] > minlength:
+    if hasnextpage is None or edges is None:
+        print(streamer, "malformed", mode, "output", data)
+    if edges is not None:
+        alledges += edges
+    return alledges
+
+def get_twitch_clips_paginated(streamer, limit=20, filter="ALL_TIME"):
+    return get_paginated_template(get_twitch_clips, "clips", streamer, limit, filter)
+
+def get_recent_clip(edges, minlength=5):
+    for edge in sorted(edges, key=lambda x: x["node"]["createdAt"], reverse=True):
+        if edge["node"]["durationSeconds"] > minlength:
             return edge
     return {}
 
-def get_recent_clip(data, minlength=5):
-    return get_recent_template(data, minlength, "clips", "createdAt", "durationSeconds")
-
-def get_twitch_vods(streamer, limit=20):
+def get_twitch_vods(streamer, limit=20, filter="", cursor=""):
     payload = gql_payload("FilterableVideoTower_Videos", "67004f7881e65c297936f32c75246470629557a393788fb5a69d6d9a25a8fd5f")
     payload[0]["variables"] = {
         "channelOwnerLogin": streamer,
         "limit": limit,
-        "videoSort": "TIME"
+        "videoSort": "TIME",
+        "cursor": cursor
     }
-    # todo: proper pagination
     return gql_post_with_retries(payload)
 
-def get_recent_vod(data, minlength=300):
-    return get_recent_template(data, minlength, "videos", "publishedAt", "lengthSeconds")
+def get_twitch_vods_paginated(streamer, limit=20):
+    return get_paginated_template(get_twitch_vods, "videos", streamer, limit, "")
+
+def get_recent_vod(edges, minlength=300):
+    for edge in sorted(edges, key=lambda x: x["node"]["publishedAt"], reverse=True):
+        if edge["node"]["lengthSeconds"] > minlength:
+            return edge
+    return {}
 
 def is_live(streamer):
     payload = gql_payload("WithIsStreamLiveQuery", "04e46329a6786ff3a81c01c50bfa5d725902507a0deb83b0edbf7abe7a3716ea")
@@ -350,7 +371,7 @@ for (i, s) in enumerate(streamers):
     clip = {}
     extraclips = []
     if expiresat:
-        recentclips = get_twitch_clips(s, limit=20, filter="LAST_DAY")
+        recentclips = get_twitch_clips_paginated(s, limit=20, filter="LAST_DAY")
         clip = get_recent_clip(recentclips, minlength=5)
         need_vod = True # always watch a vod for expiring streaks, in case the
         # most recent clip is from an older stream than the most recent vod
@@ -362,20 +383,22 @@ for (i, s) in enumerate(streamers):
                 print(s, "no recent clip but streak expires at", expiresat)
         if clip and clip["node"]["broadcastIdentifier"]["id"] not in missedstreamids:
             print(s, "found recent clip but broadcast id does not match missed streams")
-            for extraclip in safeindex(recentclips, ["data", "user", "clips", "edges"]):
+            for extraclip in recentclips:
                 if extraclip["node"]["broadcastIdentifier"]["id"] in missedstreamids:
                     extraclips.append(extraclip)
     if not clip:
         if expiresat:
-            lastweekclips = get_twitch_clips(s, limit=20, filter="LAST_WEEK")
-            for extraclip in safeindex(lastweekclips, ["data", "user", "clips", "edges"]) or []:
+            for extraclip in get_twitch_clips_paginated(s, limit=20, filter="LAST_WEEK"):
                 if extraclip["node"]["broadcastIdentifier"]["id"] in missedstreamids:
                     extraclips.append(extraclip)
         oldclips = get_twitch_clips(s, limit=20, filter="ALL_TIME")
-        clip = get_recent_clip(oldclips, minlength=5)
+        edges = safeindex(oldclips, ["data", "user", "clips", "edges"])
+        if edges is None:
+            print(s, "malformed clips output", oldclips)
+        clip = get_recent_clip(edges or [], minlength=5)
         if not clip:
             need_vod = True
-            clip = get_recent_clip(oldclips, minlength=0)
+            clip = get_recent_clip(edges or [], minlength=0)
             if clip:
                 print(s, "only has short clips, no clips over 5 seconds")
             #else: # check for vods below
@@ -399,7 +422,7 @@ for (i, s) in enumerate(streamers):
             break
 
     if need_vod:
-        vods = get_twitch_vods(s, limit=20)
+        vods = get_twitch_vods_paginated(s, limit=20)
         latestvod = get_recent_vod(vods, minlength=0)
         if not clip:
             if latestvod:
@@ -417,7 +440,7 @@ for (i, s) in enumerate(streamers):
                     vodqueue.append(longervod)
             if len(missedstreamids) > 0 and latestvod["node"]["broadcastIdentifier"]["id"] not in missedstreamids:
                 print(s, "most recent vod broadcast id does not match missed streams")
-                for vod in safeindex(vods, ["data", "user", "videos", "edges"]):
+                for vod in vods:
                     if vod["node"]["broadcastIdentifier"]["id"] in missedstreamids:
                         vodqueue.append(vod)
 
