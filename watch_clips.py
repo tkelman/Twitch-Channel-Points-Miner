@@ -12,7 +12,7 @@ username = configjson["username"]
 configstreamers = [s.lower() for s in configjson["streamers"]]
 
 extrastreamers = []
-for filename in ("raid_targets.txt", "/mnt/e/Dropbox/twitch_channels.txt"):
+for filename in (): # ("raid_targets.txt", "/mnt/e/Dropbox/twitch_channels.txt"):
     if os.path.isfile(filename):
         with open(filename) as f:
             extrastreamers += [s.lower() for s in f.read().splitlines()]
@@ -270,14 +270,16 @@ def send_vod_minute_watched(vodnode):
 
 def increment_vod(vod, queuelength):
     s = vod["node"]["owner"]["login"]
-    data = weekly_visit_rewards(s)
-    weeklyVisitRewards = safeindex(data, ["data", "channel", "self", "weeklyVisitRewards"])
-    if weeklyVisitRewards:
-        visited = weeklyVisitRewards["hasEarnedWeeklyRewardThisWeek"] or weeklyVisitRewards["hasVisitedToday"]
-    else: # weekly rewards disabled
-        visited = True
-    if visited and not streak_expiresat(reward_list(s), s):
-        print(s, "visited for weekly rewards and streak not expiring, finished with vod watching")
+    # data = weekly_visit_rewards(s)
+    # weeklyVisitRewards = safeindex(data, ["data", "channel", "self", "weeklyVisitRewards"])
+    # if weeklyVisitRewards:
+    #     visited = weeklyVisitRewards["hasEarnedWeeklyRewardThisWeek"] or weeklyVisitRewards["hasVisitedToday"]
+    # else: # weekly rewards disabled
+    #     visited = True
+    # if visited and not streak_expiresat(reward_list(s), s):
+    #     print(s, "visited for weekly rewards and streak not expiring, finished with vod watching")
+    if not streak_expiresat(reward_list(s), s):
+        print(s, "streak not expiring, finished with vod watching")
         vod["watchtime"] = 3600
         return
 
@@ -297,19 +299,20 @@ for (i, s) in enumerate(streamers):
         print(s, "channel not found, streamer", i, "of", len(streamers))
         continue
 
-    data = weekly_visit_rewards(s)
-    data_channel_self = safeindex(data, ["data", "channel", "self"])
-    if data_channel_self is None or ("weeklyVisitRewards" not in data_channel_self):
-        print(s, "malformed weekly rewards output", data)
-        continue
-    weeklyVisitRewards = data_channel_self["weeklyVisitRewards"]
-    hasEarnedWeeklyRewardThisWeek = safeindex(data, ["data", "channel", "self", "weeklyVisitRewards", "hasEarnedWeeklyRewardThisWeek"])
-    hasVisitedToday = safeindex(data, ["data", "channel", "self", "weeklyVisitRewards", "hasVisitedToday"])
-    if not weeklyVisitRewards:
-        print(s, "weekly rewards disabled, streamer", i, "of", len(streamers))
-        visited = True
-    else:
-        visited = hasEarnedWeeklyRewardThisWeek or hasVisitedToday
+    # data = weekly_visit_rewards(s)
+    # data_channel_self = safeindex(data, ["data", "channel", "self"])
+    # if data_channel_self is None or ("weeklyVisitRewards" not in data_channel_self):
+    #     print(s, "malformed weekly rewards output", data)
+    #     continue
+    # weeklyVisitRewards = data_channel_self["weeklyVisitRewards"]
+    # hasEarnedWeeklyRewardThisWeek = safeindex(data, ["data", "channel", "self", "weeklyVisitRewards", "hasEarnedWeeklyRewardThisWeek"])
+    # hasVisitedToday = safeindex(data, ["data", "channel", "self", "weeklyVisitRewards", "hasVisitedToday"])
+    # if not weeklyVisitRewards:
+    #     print(s, "weekly rewards disabled, streamer", i, "of", len(streamers))
+    #     visited = True
+    # else:
+    #     visited = hasEarnedWeeklyRewardThisWeek or hasVisitedToday
+    visited = True # weekly rewards event has ended
 
     rewardlist = reward_list(s)
     expiresat = streak_expiresat(rewardlist, s)
@@ -328,20 +331,20 @@ for (i, s) in enumerate(streamers):
         for id in stream["broadcastIdentifiers"]:
             missedstreamids.append(id["id"])
 
-    daysVisitedThisWeek = safeindex(data, ["data", "channel", "self", "weeklyVisitRewards", "daysVisitedThisWeek"])
-    accumulatedWeeks = safeindex(data, ["data", "channel", "self", "weeklyVisitRewards", "accumulatedWeeks"])
-    if hasEarnedWeeklyRewardThisWeek:
-        print(s, "done for week, daysVisitedThisWeek:", daysVisitedThisWeek,
-              "accumulatedWeeks:", accumulatedWeeks,
-              "streamer", i, "of", len(streamers))
-    elif hasVisitedToday:
-        print(s, "visited for today, daysVisitedThisWeek:", daysVisitedThisWeek,
-              "accumulatedWeeks:", accumulatedWeeks,
-              "streamer", i, "of", len(streamers))
-    elif not visited:
-        print(s, "need to watch any clip/vod for weekly rewards, daysVisitedThisWeek:",
-              daysVisitedThisWeek, "accumulatedWeeks:", accumulatedWeeks,
-              "streamer", i, "of", len(streamers))
+    # daysVisitedThisWeek = safeindex(data, ["data", "channel", "self", "weeklyVisitRewards", "daysVisitedThisWeek"])
+    # accumulatedWeeks = safeindex(data, ["data", "channel", "self", "weeklyVisitRewards", "accumulatedWeeks"])
+    # if hasEarnedWeeklyRewardThisWeek:
+    #     print(s, "done for week, daysVisitedThisWeek:", daysVisitedThisWeek,
+    #           "accumulatedWeeks:", accumulatedWeeks,
+    #           "streamer", i, "of", len(streamers))
+    # elif hasVisitedToday:
+    #     print(s, "visited for today, daysVisitedThisWeek:", daysVisitedThisWeek,
+    #           "accumulatedWeeks:", accumulatedWeeks,
+    #           "streamer", i, "of", len(streamers))
+    # elif not visited:
+    #     print(s, "need to watch any clip/vod for weekly rewards, daysVisitedThisWeek:",
+    #           daysVisitedThisWeek, "accumulatedWeeks:", accumulatedWeeks,
+    #           "streamer", i, "of", len(streamers))
 
     need_vod = False
     clip = {}
