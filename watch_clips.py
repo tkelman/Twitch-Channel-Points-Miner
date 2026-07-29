@@ -6,6 +6,7 @@
 import json, os, requests, datetime, random, string, time, collections
 from base64 import b64encode
 
+starttime = time.monotonic()
 with open("config.json") as f:
     configjson = json.load(f)
 username = configjson["username"]
@@ -471,3 +472,10 @@ while (vodwatching is not None and vodwatching.get("watchtime", 0) <= 300) or le
 
     if vodwatching["watchtime"] > 300 and len(vodqueue) > 0:
         vodwatching = vodqueue.popleft()
+
+# sleep if total runtime was less than an hour
+runtime = time.monotonic() - starttime
+if runtime < 3600:
+    print("sleeping from", datetime.datetime.now(), "for", 3600 - runtime, "seconds until",
+          datetime.datetime.now() + datetime.timedelta(seconds=(3600 - runtime)))
+    time.sleep(3600 - runtime)
