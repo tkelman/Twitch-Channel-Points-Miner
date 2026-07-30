@@ -164,12 +164,19 @@ def get_paginated_template(subfunction, mode, streamer, limit, filter):
     data = subfunction(streamer, limit, filter)
     hasnextpage = safeindex(data, ["data", "user", mode, "pageInfo", "hasNextPage"])
     alledges = []
+    cursor = ""
     while hasnextpage:
         edges = safeindex(data, ["data", "user", mode, "edges"])
         if edges is None:
             break
         alledges += edges
-        data = subfunction(streamer, limit, filter, cursor=edges[-1]["cursor"])
+        if len(edges) == 0:
+            print(streamer, mode, "empty edges with len(alledges)={}".format(len(alledges)),
+                "cursor", cursor, "data", data)
+            cursor = ""
+        else:
+            cursor = edges[-1]["cursor"]
+        data = subfunction(streamer, limit, filter, cursor=cursor)
         hasnextpage = safeindex(data, ["data", "user", mode, "pageInfo", "hasNextPage"])
 
     edges = safeindex(data, ["data", "user", mode, "edges"])
@@ -182,11 +189,19 @@ def get_paginated_template(subfunction, mode, streamer, limit, filter):
 def get_twitch_clips_paginated(streamer, limit=20, filter="ALL_TIME"):
     return get_paginated_template(get_twitch_clips, "clips", streamer, limit, filter)
 
-def get_recent_clip(edges, minlength=5):
-    for edge in sorted(edges, key=lambda x: x["node"]["createdAt"], reverse=True):
-        if edge["node"]["durationSeconds"] > minlength:
+def get_recent_template(edges, sortkey, lengthkey, minlength):
+    for edge in edges:
+        if edge["node"][sortkey] is None:
+            # seems to be missing publishedAt info for some highlights?
+            print("missing", sortkey, "from", edge)
+            edge["node"][sortkey] = ""
+    for edge in sorted(edges, key=lambda x: x["node"][sortkey], reverse=True):
+        if edge["node"][lengthkey] > minlength:
             return edge
     return {}
+
+def get_recent_clip(edges, minlength=5):
+    return get_recent_template(edges, "createdAt", "durationSeconds", minlength)
 
 def get_twitch_vods(streamer, limit=20, filter="", cursor=""):
     payload = gql_payload("FilterableVideoTower_Videos", "67004f7881e65c297936f32c75246470629557a393788fb5a69d6d9a25a8fd5f")
@@ -202,10 +217,7 @@ def get_twitch_vods_paginated(streamer, limit=20):
     return get_paginated_template(get_twitch_vods, "videos", streamer, limit, "")
 
 def get_recent_vod(edges, minlength=300):
-    for edge in sorted(edges, key=lambda x: x["node"]["publishedAt"], reverse=True):
-        if edge["node"]["lengthSeconds"] > minlength:
-            return edge
-    return {}
+    return get_recent_template(edges, "publishedAt", "lengthSeconds", minlength)
 
 def is_live(streamer):
     payload = gql_payload("WithIsStreamLiveQuery", "04e46329a6786ff3a81c01c50bfa5d725902507a0deb83b0edbf7abe7a3716ea")
