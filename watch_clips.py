@@ -161,29 +161,26 @@ def get_twitch_clips(streamer, limit=20, filter="ALL_TIME", cursor=""):
     return gql_post_with_retries(payload)
 
 def get_paginated_template(subfunction, mode, streamer, limit, filter):
-    data = subfunction(streamer, limit, filter)
-    hasnextpage = safeindex(data, ["data", "user", mode, "pageInfo", "hasNextPage"])
     alledges = []
+    hasnextpage = True
     cursor = ""
     while hasnextpage:
+        data = subfunction(streamer, limit, filter, cursor=cursor)
         edges = safeindex(data, ["data", "user", mode, "edges"])
+        hasnextpage = safeindex(data, ["data", "user", mode, "pageInfo", "hasNextPage"])
         if edges is None:
             break
         alledges += edges
         if len(edges) == 0:
-            print(streamer, mode, "empty edges with len(alledges)={}".format(len(alledges)),
-                "cursor", cursor, "data", data)
+            if hasnextpage:
+                print(streamer, mode, "empty edges with len(alledges)={}".format(len(alledges)),
+                    "cursor", cursor, "data", data)
             cursor = ""
         else:
             cursor = edges[-1]["cursor"]
-        data = subfunction(streamer, limit, filter, cursor=cursor)
-        hasnextpage = safeindex(data, ["data", "user", mode, "pageInfo", "hasNextPage"])
 
-    edges = safeindex(data, ["data", "user", mode, "edges"])
     if hasnextpage is None or edges is None:
         print(streamer, "malformed", mode, "output", data)
-    if edges is not None:
-        alledges += edges
     return alledges
 
 def get_twitch_clips_paginated(streamer, limit=20, filter="ALL_TIME"):
