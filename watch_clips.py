@@ -468,18 +468,18 @@ for (i, s) in enumerate(streamers):
     if vodwatching:
         increment_vod(vodwatching, len(vodqueue))
 
-        if vodwatching["watchtime"] > 300 and len(vodqueue) > 0:
+        if vodwatching["watchtime"] > 360 and len(vodqueue) > 0:
             vodwatching = vodqueue.popleft()
         elif vodwatching["watchtime"] > 600 and len(vodqueue) == 0:
             # stop watching after 10 minutes if queue is empty
             vodwatching = None
 
 # clean up remaining vod queue after processing all streamers' clips
-while (vodwatching is not None and vodwatching.get("watchtime", 0) <= 300) or len(vodqueue) > 0:
+while (vodwatching is not None and vodwatching.get("watchtime", 0) <= 360) or len(vodqueue) > 0:
     time.sleep(31)
     increment_vod(vodwatching, len(vodqueue))
 
-    if vodwatching["watchtime"] > 300 and len(vodqueue) > 0:
+    if vodwatching["watchtime"] > 360 and len(vodqueue) > 0:
         vodwatching = vodqueue.popleft()
 
 # sleep if total runtime was less than an hour
