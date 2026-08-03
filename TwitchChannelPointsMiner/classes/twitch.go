@@ -1379,6 +1379,10 @@ func operationNote(name string) string {
 		return "make prediction"
 	case "ModViewChannelQuery":
 		return "mod view"
+	case "ClipsCards__User":
+		return "clips"
+	case "FilterableVideoTower_Videos":
+		return "vods"
 	default:
 		return ""
 	}
