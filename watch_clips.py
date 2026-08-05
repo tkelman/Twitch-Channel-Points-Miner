@@ -449,18 +449,23 @@ for (i, s) in enumerate(streamers):
                 print(s, "no clips or vods available but channel is live right now")
             else:
                 print(s, "no clips or vods available")
-        if latestvod:
+        if latestvod and doweeklyrewards:
             vodqueue.append(latestvod)
             if latestvod["node"]["lengthSeconds"] < 300:
                 # if latest vod is short, also try adding an older long vod to the queue
                 longervod = get_recent_vod(vods, minlength=300)
                 if longervod:
                     vodqueue.append(longervod)
-            if len(missedstreamids) > 0 and latestvod["node"]["broadcastIdentifier"]["id"] not in missedstreamids:
-                print(s, "most recent vod broadcast id does not match missed streams")
-                for vod in vods:
-                    if vod["node"]["broadcastIdentifier"]["id"] in missedstreamids:
-                        vodqueue.append(vod)
+        missedvodfound = False
+        for vod in vods:
+            if vod["node"]["broadcastIdentifier"]["id"] in missedstreamids:
+                vodqueue.append(vod)
+                missedvodfound = True
+        if len(missedstreamids) > 0 and not missedvodfound:
+            msg = ""
+            if is_live(s):
+                msg = " but channel is live right now"
+            print(s, "no vods found with broadcast id matching missed streams" + msg)
 
     if not vodwatching and len(vodqueue) > 0:
         vodwatching = vodqueue.popleft()
