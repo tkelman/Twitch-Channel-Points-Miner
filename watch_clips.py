@@ -436,7 +436,7 @@ for (i, s) in enumerate(streamers):
         time.sleep(5)
         send_clip_second_watched(extraclip["node"], play_session_id, seconds_watched=5)
         if not streak_expiresat(reward_list(s), s):
-            print(s, "finishing early after", j + 1, "extra clips")
+            print(s, "streak saved after", j + 1, "extra clips")
             break
 
     if need_vod:
@@ -488,3 +488,5 @@ if runtime < 3600:
     print("sleeping from", datetime.datetime.now(), "for", 3600 - runtime, "seconds until",
           datetime.datetime.now() + datetime.timedelta(seconds=(3600 - runtime)))
     time.sleep(3600 - runtime)
+else:
+    print("finished at", datetime.datetime.now(), "after", runtime, "seconds")
