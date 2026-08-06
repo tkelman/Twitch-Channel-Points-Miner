@@ -175,6 +175,7 @@ def get_paginated_template(subfunction, mode, streamer, limit, filter):
             if hasnextpage:
                 print(streamer, mode, "empty edges with len(alledges)={}".format(len(alledges)),
                     "cursor", cursor, "data", data)
+                hasnextpage = False
             cursor = ""
         else:
             cursor = edges[-1]["cursor"]
