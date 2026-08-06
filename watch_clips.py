@@ -70,11 +70,11 @@ def gql_post(payload):
     else:
         return [{"errors": "Failed to fetch data: {} - {}".format(response.status_code, response.text)}]
 
-def safeindex(data, indices):
+def navigate(data, path):
     # index into a gql return dict with some robustness for malformed data
     assert len(data) == 1
     out = data[0]
-    for i in indices:
+    for i in path.split("."):
         if out is None:
             return out
         out = out.get(i, {})
@@ -83,14 +83,14 @@ def safeindex(data, indices):
 def gql_post_with_retries(payload, retries=15):
     attempts = 0
     data = gql_post(payload)
-    errors = safeindex(data, ["errors"])
-    if len(errors) == 1 and safeindex(errors, ["message"]) == 'graphql: got nil for non-null "WeeklyVisitRewardTier"':
+    errors = navigate(data, "errors")
+    if len(errors) == 1 and navigate(errors, "message") == 'graphql: got nil for non-null "WeeklyVisitRewardTier"':
         return data
     while errors and attempts < retries:
         print("gql error", data)
         time.sleep(1.2 ** attempts)
         data = gql_post(payload)
-        errors = safeindex(data, ["errors"])
+        errors = navigate(data, "errors")
         attempts += 1
     return data
 
@@ -100,7 +100,7 @@ def get_id(streamer):
         "login": streamer
     }
     data = gql_post_with_retries(payload)
-    user = safeindex(data, ["data", "user"])
+    user = navigate(data, "data.user")
     if user:
         return user.get("id")
     else:
@@ -139,7 +139,7 @@ def utctolocal(ts):
         tzinfo=datetime.timezone.utc).astimezone()
 
 def streak_expiresat(rewardlist, s):
-    watchstreakmilestone = safeindex(rewardlist, ["data", "channel", "self", "watchStreakMilestone"])
+    watchstreakmilestone = navigate(rewardlist, "data.channel.self.watchStreakMilestone")
     if watchstreakmilestone is None or ("expiresAt" not in watchstreakmilestone):
         print(s, "malformed reward list", rewardlist)
         return None
@@ -166,8 +166,8 @@ def get_paginated_template(subfunction, mode, streamer, limit, filter):
     cursor = ""
     while hasnextpage:
         data = subfunction(streamer, limit, filter, cursor=cursor)
-        edges = safeindex(data, ["data", "user", mode, "edges"])
-        hasnextpage = safeindex(data, ["data", "user", mode, "pageInfo", "hasNextPage"])
+        edges = navigate(data, "data.user." + mode + ".edges")
+        hasnextpage = navigate(data, "data.user." + mode + ".pageInfo.hasNextPage")
         if edges is None:
             break
         alledges += edges
@@ -223,7 +223,7 @@ def is_live(streamer):
         "id": channelid(streamer)
     }
     data = gql_post_with_retries(payload)
-    user = safeindex(data, ["data", "user"])
+    user = navigate(data, "data.user")
     if user is None or "stream" not in user:
         print(streamer, "malformed is_live data", data)
         return False
@@ -305,7 +305,7 @@ def increment_vod(vod, queuelength):
     s = vod["node"]["owner"]["login"]
     if doweeklyrewards:
         data = weekly_visit_rewards(s)
-        weeklyVisitRewards = safeindex(data, ["data", "channel", "self", "weeklyVisitRewards"])
+        weeklyVisitRewards = navigate(data, "data.channel.self.weeklyVisitRewards")
         msg = "visited for weekly rewards and "
     else:
         weeklyVisitRewards = False
@@ -338,13 +338,13 @@ for (i, s) in enumerate(streamers):
 
     if doweeklyrewards:
         data = weekly_visit_rewards(s)
-        data_channel_self = safeindex(data, ["data", "channel", "self"])
+        data_channel_self = navigate(data, "data.channel.self")
         if data_channel_self is None or ("weeklyVisitRewards" not in data_channel_self):
             print(s, "malformed weekly rewards output", data)
             continue
         weeklyVisitRewards = data_channel_self["weeklyVisitRewards"]
-        hasEarnedWeeklyRewardThisWeek = safeindex(data, ["data", "channel", "self", "weeklyVisitRewards", "hasEarnedWeeklyRewardThisWeek"])
-        hasVisitedToday = safeindex(data, ["data", "channel", "self", "weeklyVisitRewards", "hasVisitedToday"])
+        hasEarnedWeeklyRewardThisWeek = navigate(data, "data.channel.self.weeklyVisitRewards.hasEarnedWeeklyRewardThisWeek")
+        hasVisitedToday = navigate(data, "data.channel.self.weeklyVisitRewards.hasVisitedToday")
         if not weeklyVisitRewards:
             print(s, "weekly rewards disabled, streamer", i, "of", len(streamers))
             visited = True
@@ -356,7 +356,7 @@ for (i, s) in enumerate(streamers):
     rewardlist = reward_list(s)
     expiresat = streak_expiresat(rewardlist, s)
     if i % (len(configstreamers) + chunksize) >= len(configstreamers):
-        streaklength = safeindex(rewardlist, ["data", "channel", "self", "watchStreakMilestone", "watchStreakMilestone", "value"])
+        streaklength = navigate(rewardlist, "data.channel.self.watchStreakMilestone.watchStreakMilestone.value")
         if not streaklength or not streaklength.isdecimal():
             print(s, "malformed reward list", rewardlist)
         elif int(streaklength) > 0:
@@ -366,13 +366,13 @@ for (i, s) in enumerate(streamers):
     if expiresat:
         print(s, "need to watch recent clip/vod because streak expires at", expiresat)
     missedstreamids = []
-    for stream in safeindex(rewardlist, ["data", "channel", "self", "watchStreakMilestone", "missedStreams"]) or []:
+    for stream in navigate(rewardlist, "data.channel.self.watchStreakMilestone.missedStreams") or []:
         for id in stream["broadcastIdentifiers"]:
             missedstreamids.append(id["id"])
 
     if doweeklyrewards:
-        daysVisitedThisWeek = safeindex(data, ["data", "channel", "self", "weeklyVisitRewards", "daysVisitedThisWeek"])
-        accumulatedWeeks = safeindex(data, ["data", "channel", "self", "weeklyVisitRewards", "accumulatedWeeks"])
+        daysVisitedThisWeek = navigate(data, "data.channel.self.weeklyVisitRewards.daysVisitedThisWeek")
+        accumulatedWeeks = navigate(data, "data.channel.self.weeklyVisitRewards.accumulatedWeeks")
         if hasEarnedWeeklyRewardThisWeek:
             print(s, "done for week, daysVisitedThisWeek:", daysVisitedThisWeek,
                 "accumulatedWeeks:", accumulatedWeeks,
@@ -411,7 +411,7 @@ for (i, s) in enumerate(streamers):
                 if extraclip["node"]["broadcastIdentifier"]["id"] in missedstreamids:
                     extraclips.append(extraclip)
         oldclips = get_twitch_clips(s, limit=20, filter="ALL_TIME")
-        edges = safeindex(oldclips, ["data", "user", "clips", "edges"])
+        edges = navigate(oldclips, "data.user.clips.edges")
         if edges is None:
             print(s, "malformed clips output", oldclips)
         clip = get_recent_clip(edges or [], minlength=5)
