@@ -35,6 +35,7 @@ def isoparse_stripns(timestamp):
 offlines = []
 onlines = []
 numonline = []
+streamerorder = {}
 with (Path(__file__).parent / "log" / "numonline.csv").open("w") as f:
     numon = 0
     offdecrement = 0
@@ -42,7 +43,9 @@ with (Path(__file__).parent / "log" / "numonline.csv").open("w") as f:
         off = re.match(r"\[INFO\] (.*): 😴 (.*) \(.* points\) is Offline!", line)
         on  = re.match(r"\[INFO\] (.*): 🥳 (.*) \(.* points\) is Online!",  line)
         streak = re.match(r".* (.*) \(.* points\) .* \| streak length (\d+).*", line)
+        slot = re.match(r"SLOT \d: (.*) \(reason.*", line)
         streamer = ""
+        order = ""
         if streak:
             streamer = streak.group(1)
             streaklen = int(streak.group(2))
@@ -63,6 +66,8 @@ with (Path(__file__).parent / "log" / "numonline.csv").open("w") as f:
             if streak:
                 assert streamer == off.group(2)
                 offlines[-1]["streaklen"] = streaklen
+                if offdecrement == 0:
+                    streamerorder[streamer] = lineno - 4
             #print("offline:", offlines[-1])
         elif on:
             numon += 1
@@ -75,18 +80,23 @@ with (Path(__file__).parent / "log" / "numonline.csv").open("w") as f:
             if streak:
                 assert streamer == on.group(2)
                 onlines[-1]["streaklen"] = streaklen
+                if offdecrement == 0:
+                    streamerorder[streamer] = lineno - 4
             addtimes = re.match(r".* \| started at (.*) \| streak achievement timestamp (.*)", line)
             if addtimes:
                 #print(addtimes)
                 onlines[-1]["createdAt"] = isoparse_stripns(addtimes.group(1))
                 onlines[-1]["achievementAt"] = isoparse_stripns(addtimes.group(2))
             #print("online:", onlines[-1])
+        elif slot:
+            streamer = slot.group(1)
+            order = streamerorder[streamer]
         else:
             message = re.match(r"\[(INFO|ERROR|DEBUG|DEEP)\] " + timeregex, line)
             if message:
                 timestamp = datetime.strptime(message.group(2), timeformat)
 
-        f.write("{},{}\n".format(numon, timestamp))
+        f.write("{},{},{}\n".format(numon, timestamp, order))
         numonline.append(numon)
 
 #print(numonline)
