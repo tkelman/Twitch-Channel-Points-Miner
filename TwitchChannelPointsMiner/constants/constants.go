@@ -22,6 +22,7 @@ type GQLPersistedOperation struct {
 	OperationName string                 `json:"operationName"`
 	Variables     map[string]interface{} `json:"variables,omitempty"`
 	Extensions    GQLPersistedExtensions `json:"extensions"`
+	Query         string                 `json:"query,omitempty"`
 }
 
 type GQLPersistedExtensions struct {
@@ -98,6 +99,7 @@ var GQLOperations = struct {
 	ContributeCommunityPointsCommunityGoal GQLPersistedOperation
 	ClipsCardsUser                         GQLPersistedOperation
 	FilterableVideoTowerVideos             GQLPersistedOperation
+	GetUsernameFromID                      GQLPersistedOperation
 }{
 	URL:                          "https://gql.twitch.tv/gql",
 	IntegrityURL:                 "https://gql.twitch.tv/integrity",
@@ -146,6 +148,7 @@ var GQLOperations = struct {
 		"limit":     20,
 		"videoSort": "TIME",
 	}),
+	GetUsernameFromID: newPersistedOperation("GetUsernameFromID", "", nil),
 }
 
 func newPersistedOperation(name, hash string, variables map[string]interface{}) GQLPersistedOperation {
