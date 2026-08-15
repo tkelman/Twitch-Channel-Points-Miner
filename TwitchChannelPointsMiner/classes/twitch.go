@@ -282,26 +282,6 @@ func (t *Twitch) GetChannelID(login string) (string, error) {
 	return "", fmt.Errorf("user %s not found", login)
 }
 
-func (t *Twitch) getUsernameFromID(channelID string) (string, error) {
-	op := constants.ClonePersistedOperation(constants.GQLOperations.GetUsernameFromID)
-	if op.Variables == nil {
-		op.Variables = map[string]interface{}{}
-	}
-	op.Variables["id"] = channelID
-	op.Extensions = constants.GQLPersistedExtensions{}
-	// does an official version of this exist with a defined sha256Hash instead of needing a custom query?
-	op.Query = "query GetUsernameFromID($id: ID!) { user(id: $id) { id login displayName } }"
-	resp, err := t.PostGQL(op)
-	if err != nil {
-		return "", err
-	}
-	login := navigate(resp, "data.user.login")
-	if s, ok := login.(string); ok && s != "" {
-		return s, nil
-	}
-	return "", fmt.Errorf("channel %s not found", channelID)
-}
-
 func (t *Twitch) GetFollowers(limit int, order entities.FollowersOrder) ([]string, error) {
 	op := constants.ClonePersistedOperation(constants.GQLOperations.ChannelFollows)
 	if op.Variables == nil {
@@ -657,25 +637,7 @@ func (t *Twitch) UpdateStream(streamer *entities.Streamer) error {
 	prevGame := strings.TrimSpace(streamer.Stream.GameName())
 	info, err := t.streamInfo(streamer)
 	if err != nil {
-		// if streamInfo fails, check if channel has had a rename
-		name, uerr := t.getUsernameFromID(streamer.ChannelID)
-		oldname := streamer.Username
-		if uerr == nil && name != oldname {
-			streamer.Username = name
-			info, err = t.streamInfo(streamer)
-			if err != nil {
-				return err
-			}
-			if t.logger != nil {
-				if t.anonymizer != nil && t.anonymizer.Enabled() {
-					t.logger.Printf("Rename detected for channel %s", streamer.ChannelID)
-				} else {
-					t.logger.Printf("Rename detected from %s to %s for channel %s", oldname, name, streamer.ChannelID)
-				}
-			}
-		} else {
-			return err
-		}
+		return err
 	}
 	game := info.Game
 	streamer.Stream.Update(
@@ -1654,8 +1616,6 @@ func operationNote(name string) string {
 		return "clips"
 	case "FilterableVideoTower_Videos":
 		return "vods"
-	case "GetUsernameFromID":
-		return "resolve username"
 	default:
 		return ""
 	}
