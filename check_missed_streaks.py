@@ -2,13 +2,24 @@
 
 # usage: ./check_missed_streaks.py log/filename.log
 
-import re, sys
+import re, sys, os, json
 from datetime import datetime
 from pathlib import Path
 
 assert len(sys.argv) > 1
 with open(sys.argv[1]) as f:
     lines = f.readlines()
+
+with open("config.json") as f:
+    configjson = json.load(f)
+
+watchstreakcache = "log/watch_streak_cache.{}.json".format(configjson["username"])
+channelids = {}
+if os.path.isfile(watchstreakcache):
+    with open(watchstreakcache) as f:
+        cachejson = json.load(f)
+    for entry in cachejson["entries"]:
+        channelids[entry["streamer_login"].lower()] = entry["channel_id"]
 
 timeregex = r"(\d\d:\d\d \d\d\/\d\d\/\d\d): "
 if re.match(r"\[INFO\] " + timeregex + r"Twitch Channel Points Miner", lines[0]):
@@ -67,7 +78,8 @@ with (Path(__file__).parent / "log" / "numonline.csv").open("w") as f:
                 assert streamer == off.group(2)
                 offlines[-1]["streaklen"] = streaklen
                 if offdecrement == 0:
-                    streamerorder[streamer] = lineno - 4
+                    channelid = channelids.get(streamer.lower(), streamer)
+                    streamerorder[channelid] = lineno - 4
             #print("offline:", offlines[-1])
         elif on:
             numon += 1
@@ -81,7 +93,8 @@ with (Path(__file__).parent / "log" / "numonline.csv").open("w") as f:
                 assert streamer == on.group(2)
                 onlines[-1]["streaklen"] = streaklen
                 if offdecrement == 0:
-                    streamerorder[streamer] = lineno - 4
+                    channelid = channelids.get(streamer.lower(), streamer)
+                    streamerorder[channelid] = lineno - 4
             addtimes = re.match(r".* \| started at (.*) \| streak achievement timestamp (.*)", line)
             if addtimes:
                 #print(addtimes)
@@ -90,7 +103,8 @@ with (Path(__file__).parent / "log" / "numonline.csv").open("w") as f:
             #print("online:", onlines[-1])
         elif slot:
             streamer = slot.group(1)
-            order = streamerorder[streamer]
+            channelid = channelids.get(streamer.lower(), streamer)
+            order = streamerorder[channelid]
         else:
             message = re.match(r"\[(INFO|ERROR|DEBUG|DEEP)\] " + timeregex, line)
             if message:
