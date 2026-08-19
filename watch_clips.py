@@ -351,24 +351,14 @@ for (i, s) in enumerate(streamers):
         else:
             visited = hasEarnedWeeklyRewardThisWeek or hasVisitedToday
     else:
-        visited = True # weekly rewards event has ended
+        visited = False # watch a clip to test streaks not being recoverable after 30 days offline
 
-    rewardlist = reward_list(s)
-    expiresat = streak_expiresat(rewardlist, s)
-    if i % (len(configstreamers) + chunksize) >= len(configstreamers):
-        streaklength = navigate(rewardlist, "data.channel.self.watchStreakMilestone.watchStreakMilestone.value")
-        if not streaklength or not streaklength.isdecimal():
-            print(s, "malformed reward list", rewardlist)
-        elif int(streaklength) > 0:
-            print(s, "unexpectedly nonzero streak length", streaklength)
+    expiresat = None # streak recovery happens in golang now
     if visited and not expiresat:
         continue
     if expiresat:
         print(s, "need to watch recent clip/vod because streak expires at", expiresat)
     missedstreamids = []
-    for stream in navigate(rewardlist, "data.channel.self.watchStreakMilestone.missedStreams") or []:
-        for id in stream["broadcastIdentifiers"]:
-            missedstreamids.append(id["id"])
 
     if doweeklyrewards:
         daysVisitedThisWeek = navigate(data, "data.channel.self.weeklyVisitRewards.daysVisitedThisWeek")
@@ -410,7 +400,7 @@ for (i, s) in enumerate(streamers):
             for extraclip in get_twitch_clips_paginated(s, limit=20, filter="LAST_WEEK"):
                 if extraclip["node"]["broadcastIdentifier"]["id"] in missedstreamids:
                     extraclips.append(extraclip)
-        oldclips = get_twitch_clips(s, limit=20, filter="ALL_TIME")
+        oldclips = get_twitch_clips(s, limit=4, filter="ALL_TIME")
         edges = navigate(oldclips, "data.user.clips.edges")
         if edges is None:
             print(s, "malformed clips output", oldclips)
@@ -424,6 +414,8 @@ for (i, s) in enumerate(streamers):
             #    print(s, "no clips available")
 
     if clip:
+        print(s, "watching clip", clip["node"]["slug"], "from", utctolocal(clip["node"]["createdAt"]),
+              "streamer", i, "of", len(streamers))
         play_session_id = create_random_alphanumeric_id(32)
         send_clip_video_play(clip["node"], play_session_id)
         time.sleep(5)
@@ -490,9 +482,10 @@ while (vodwatching is not None and vodwatching.get("watchtime", 0) <= 360) or le
 
 # sleep if total runtime was less than an hour
 runtime = time.monotonic() - starttime
-if runtime < 3600:
-    print("sleeping from", datetime.datetime.now(), "for", 3600 - runtime, "seconds until",
-          datetime.datetime.now() + datetime.timedelta(seconds=(3600 - runtime)))
-    time.sleep(3600 - runtime)
+targetruntime = 3600 * 48
+if runtime < targetruntime:
+    print("sleeping from", datetime.datetime.now(), "for", targetruntime - runtime, "seconds until",
+          datetime.datetime.now() + datetime.timedelta(seconds=(targetruntime - runtime)))
+    time.sleep(targetruntime - runtime)
 else:
     print("finished at", datetime.datetime.now(), "after", runtime, "seconds")
