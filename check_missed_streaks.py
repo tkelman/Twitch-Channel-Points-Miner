@@ -104,7 +104,11 @@ with (Path(__file__).parent / "log" / "numonline.csv").open("w") as f:
         elif slot:
             streamer = slot.group(1)
             channelid = channelids.get(streamer.lower(), streamer)
-            order = streamerorder[channelid]
+            if channelid in streamerorder:
+                order = streamerorder[channelid]
+            else:
+                print(streamer, "not found during miner startup")
+                order = ""
         else:
             message = re.match(r"\[(INFO|ERROR|DEBUG|DEEP)\] " + timeregex, line)
             if message:
