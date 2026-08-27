@@ -108,6 +108,7 @@ with (Path(__file__).parent / "log" / "numonline.csv").open("w") as f:
                 order = streamerorder[channelid]
             else:
                 print(streamer, "not found during miner startup")
+                streamerorder[channelid] = ""
                 order = ""
         else:
             message = re.match(r"\[(INFO|ERROR|DEBUG|DEEP)\] " + timeregex, line)
