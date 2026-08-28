@@ -54,7 +54,9 @@ for i in [0, 1]:
                     assert channelid not in onlines[i]
             streaklen = int(data.group(3))
             if initialized[i]:
-                assert channelid in streaks[i]
+                if channelid not in streaks[i]:
+                    print(streamer, "not present during initialization in", sys.argv[i + 1])
+                    streaks[i][channelid] = streaklen
             else:
                 if channelid in streaks[i]:
                     print(streamer, "repeated multiple times in", sys.argv[i + 1])
