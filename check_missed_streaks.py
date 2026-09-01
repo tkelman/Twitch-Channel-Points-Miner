@@ -47,6 +47,8 @@ offlines = []
 onlines = []
 numonline = []
 streamerorder = {}
+mostrecentoffline = {}
+shortgaps = 0
 with (Path(__file__).parent / "log" / "numonline.csv").open("w") as f:
     numon = 0
     offdecrement = 0
@@ -80,6 +82,9 @@ with (Path(__file__).parent / "log" / "numonline.csv").open("w") as f:
                 if offdecrement == 0:
                     channelid = channelids.get(streamer.lower(), streamer)
                     streamerorder[channelid] = lineno - 4
+            if offdecrement == 1:
+                # save most recent offline time, not including initially-offline streams
+                mostrecentoffline[off.group(2)] = offlines[-1]
             #print("offline:", offlines[-1])
         elif on:
             numon += 1
@@ -101,6 +106,13 @@ with (Path(__file__).parent / "log" / "numonline.csv").open("w") as f:
                 onlines[-1]["createdAt"] = isoparse_stripns(addtimes.group(1))
                 onlines[-1]["achievementAt"] = isoparse_stripns(addtimes.group(2))
             #print("online:", onlines[-1])
+
+            offline = mostrecentoffline.get(on.group(2))
+            if offline and (timestamp - offline["timestamp"]).total_seconds() <= 29 * 60:
+                print("ignoring short offline gap for", on.group(2), "from", offline["timestamp"], "to", timestamp)
+                onlines.pop()
+                offlines.pop(offlines.index(offline))
+                shortgaps += 1
         elif slot:
             streamer = slot.group(1)
             channelid = channelids.get(streamer.lower(), streamer)
@@ -241,10 +253,11 @@ for on in onlines:
     else:
         #print("went offline at", nextoffline["timestamp"])
         pass
-            
+
 print(maybemissedstreaks, "streaks possibly missed")
 print(warmstartedstreaksoffline, "streaks warm started in finished streams")
 print(maintainedstreaksoffline, "streaks maintained in finished streams")
+print(shortgaps, "short offline gaps")
 print(notyetextendedstreaks, "streaks not yet extended for now-online streams")
 print(warmstartedstreaksonline, "streaks warm started for now-online streams")
 print(maintainedstreaksonline, "streaks maintained in now-online streams")
