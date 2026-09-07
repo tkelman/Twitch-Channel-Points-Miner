@@ -1396,7 +1396,10 @@ func displayName(name string) string {
 	return strings.ToUpper(name[:1]) + name[1:]
 }
 
-func (t *Twitch) RecoverStreak(streamer *entities.Streamer) (bool, error) {
+func (t *Twitch) findEligibleClipOrVod(streamer *entities.Streamer, broadcastids []string, watch bool, rewardlistop constants.GQLPersistedOperation, length0 int) (bool, error) {
+	// find eligible clip or vod with broadcastID matching a list of candidates
+	// if watch is false, just return whether a matching clip or vod is found
+	// if watch is true, watch the found clips or vods until streak expiration goes back to null
 	if streamer == nil || streamer.ChannelID == "" {
 		return false, fmt.Errorf("missing streamer channel id")
 	}
@@ -1405,34 +1408,6 @@ func (t *Twitch) RecoverStreak(streamer *entities.Streamer) (bool, error) {
 		// should ChannelID also be anonymized somehow?
 		name = t.anonymizer.StreamerName(streamer)
 	}
-	rewardlistop := constants.ClonePersistedOperation(constants.GQLOperations.RewardList)
-	if rewardlistop.Variables == nil {
-		rewardlistop.Variables = map[string]interface{}{}
-	}
-	rewardlistop.Variables["channelID"] = streamer.ChannelID
-	var resp0 gqlRewardListResponse
-	if err := t.PostGQLDecode(rewardlistop, &resp0); err != nil {
-		return false, fmt.Errorf("RewardList lookup failed for channel %s: %v", streamer.ChannelID, err)
-	}
-	if &resp0 == nil || resp0.Data.Channel == nil || resp0.Data.Channel.Self == nil {
-		return false, fmt.Errorf("RewardList response does not have data.channel.self for channel %s", streamer.ChannelID)
-	}
-	if expiresAt := extractWatchStreakExpiresAt(&resp0); expiresAt.IsZero() {
-		// streak not expiring ... or some missing data in getting expiresAt
-		return false, nil
-	}
-	milestone := resp0.Data.Channel.Self.WatchStreakMilestone
-	if milestone == nil || milestone.MissedStreams == nil {
-		return false, fmt.Errorf("RewardList response does not have missedStreams for channel %s", streamer.ChannelID)
-	}
-	var missedstreamids []string
-	for _, stream := range milestone.MissedStreams {
-		for _, id := range stream.BroadcastIdentifiers {
-			missedstreamids = append(missedstreamids, id.ID)
-		}
-	}
-	length0 := extractWatchStreakLength(&resp0)
-
 	clipsfound := 0
 	vodsfound := 0
 	for _, filter := range []string{"LAST_DAY", "LAST_WEEK", "videos"} {
@@ -1480,7 +1455,10 @@ func (t *Twitch) RecoverStreak(streamer *entities.Streamer) (bool, error) {
 					cursor = c
 				}
 
-				if slices.Contains(missedstreamids, id) {
+				if slices.Contains(broadcastids, id) {
+					if !watch {
+						return true, nil
+					}
 					// hardcoding this for now to avoid calling GetSpadeURL on a bunch of offline streamers
 					spadeurl := "https://spade.twitch.tv/track"
 
@@ -1538,8 +1516,7 @@ func (t *Twitch) RecoverStreak(streamer *entities.Streamer) (bool, error) {
 						}
 						if expiresAt := extractWatchStreakExpiresAt(&resp1); expiresAt.IsZero() {
 							// streak not expiring ... or some missing data in getting expiresAt
-							length1 := extractWatchStreakLength(&resp1)
-							return length0 == length1, nil
+							return length0 == extractWatchStreakLength(&resp1), nil
 						}
 					} else {
 						// vod from a missed stream, eligible for saving streak, watch it
@@ -1580,8 +1557,7 @@ func (t *Twitch) RecoverStreak(streamer *entities.Streamer) (bool, error) {
 							}
 							if expiresAt := extractWatchStreakExpiresAt(&resp1); expiresAt.IsZero() {
 								// streak not expiring ... or some missing data in getting expiresAt
-								length1 := extractWatchStreakLength(&resp1)
-								return length0 == length1, nil
+								return length0 == extractWatchStreakLength(&resp1), nil
 							}
 							time.Sleep(55 * time.Second)
 						}
@@ -1596,6 +1572,9 @@ func (t *Twitch) RecoverStreak(streamer *entities.Streamer) (bool, error) {
 				hasNext = false
 			}
 		}
+	}
+	if !watch {
+		return false, nil
 	}
 	if vodsfound == 0 {
 		// add an extra sleep to let streak expiration refresh here
@@ -1616,10 +1595,42 @@ func (t *Twitch) RecoverStreak(streamer *entities.Streamer) (bool, error) {
 	expiresAt := extractWatchStreakExpiresAt(&resp2)
 	if expiresAt.IsZero() {
 		// streak not expiring ... or some missing data in getting expiresAt
-		length2 := extractWatchStreakLength(&resp2)
-		return length0 == length2, nil
+		return length0 == extractWatchStreakLength(&resp2), nil
 	}
 	return false, fmt.Errorf("no eligible clips or vods found to save streak expiring at %s", expiresAt.Local())
+}
+
+func (t *Twitch) RecoverStreak(streamer *entities.Streamer) (bool, error) {
+	if streamer == nil || streamer.ChannelID == "" {
+		return false, fmt.Errorf("missing streamer channel id")
+	}
+	rewardlistop := constants.ClonePersistedOperation(constants.GQLOperations.RewardList)
+	if rewardlistop.Variables == nil {
+		rewardlistop.Variables = map[string]interface{}{}
+	}
+	rewardlistop.Variables["channelID"] = streamer.ChannelID
+	var resp0 gqlRewardListResponse
+	if err := t.PostGQLDecode(rewardlistop, &resp0); err != nil {
+		return false, fmt.Errorf("RewardList lookup failed for channel %s: %v", streamer.ChannelID, err)
+	}
+	if &resp0 == nil || resp0.Data.Channel == nil || resp0.Data.Channel.Self == nil {
+		return false, fmt.Errorf("RewardList response does not have data.channel.self for channel %s", streamer.ChannelID)
+	}
+	if expiresAt := extractWatchStreakExpiresAt(&resp0); expiresAt.IsZero() {
+		// streak not expiring ... or some missing data in getting expiresAt
+		return false, nil
+	}
+	milestone := resp0.Data.Channel.Self.WatchStreakMilestone
+	if milestone == nil || milestone.MissedStreams == nil {
+		return false, fmt.Errorf("RewardList response does not have missedStreams for channel %s", streamer.ChannelID)
+	}
+	var missedstreamids []string
+	for _, stream := range milestone.MissedStreams {
+		for _, id := range stream.BroadcastIdentifiers {
+			missedstreamids = append(missedstreamids, id.ID)
+		}
+	}
+	return t.findEligibleClipOrVod(streamer, missedstreamids, true, rewardlistop, extractWatchStreakLength(&resp0))
 }
 
 func operationLabel(payload interface{}, includeNote bool) string {
