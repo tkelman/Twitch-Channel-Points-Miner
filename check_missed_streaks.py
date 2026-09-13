@@ -170,9 +170,8 @@ for off in offlines:
             #print("repeated offline", off)
             continue
 
-        # note: some streamers have started (late june 2026) giving +20 points for a WATCH, not sure why
-        # and in mid-september 2026, t2 subs give +14 for a WATCH
-        pointsregex = r"\[INFO\] (.*): 🚀 \+[12][024] → " + re.escape(streamer) + r" \(.* points\) - Reason: WATCH"
+        # note: some streamers have started (mid-september 2026) giving +14 points for a WATCH with a t2 subscription
+        pointsregex = r"\[INFO\] (.*): 🚀 \+1[024] → " + re.escape(streamer) + r" \(.* points\) - Reason: WATCH"
         points = [lines[i] for i in streamrange if re.match(pointsregex, lines[i])]
         #print(points)
         if len(points) == 0:
@@ -237,9 +236,8 @@ for on in onlines:
             #print("offline at", off)
     if nextoffline == {}:
         streamrange = range(lineno, len(lines))
-        # note: some streamers have started (late june 2026) giving +20 points for a WATCH, not sure why
-        # and in mid-september 2026, t2 subs give +14 for a WATCH
-        pointsregex = r"\[INFO\] (.*): 🚀 \+[12][024] → " + re.escape(streamer) + r" \(.* points\) - Reason: WATCH"
+        # note: some streamers have started (mid-september 2026) giving +14 points for a WATCH with a t2 subscription
+        pointsregex = r"\[INFO\] (.*): 🚀 \+1[024] → " + re.escape(streamer) + r" \(.* points\) - Reason: WATCH"
         points = [lines[i] for i in streamrange if re.match(pointsregex, lines[i])]
         #print(points)
         if len(points) == 0:
