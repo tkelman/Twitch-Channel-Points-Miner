@@ -108,7 +108,7 @@ with (Path(__file__).parent / "log" / "numonline.csv").open("w") as f:
             #print("online:", onlines[-1])
 
             offline = mostrecentoffline.get(on.group(2))
-            if offline and (timestamp - offline["timestamp"]).total_seconds() <= 29 * 60:
+            if offline and (timestamp - offline["timestamp"]).total_seconds() <= 29 * 60 and offline in offlines:
                 print("ignoring short offline gap for", on.group(2), "from", offline["timestamp"], "to", timestamp)
                 onlines.pop()
                 offlines.pop(offlines.index(offline))
