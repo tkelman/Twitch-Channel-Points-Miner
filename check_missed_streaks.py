@@ -218,7 +218,7 @@ for off in offlines:
 
 # check for streams that are still online as of the end of the log file
 # to see if watch points have not yet been earned since the stream went online
-notyetextendedstreaks = 0
+notyetextendedstreaks = []
 maintainedstreaksonline = 0
 warmstartedstreaksonline = 0
 for on in onlines:
@@ -245,19 +245,30 @@ for on in onlines:
                 warmstartedstreaksonline += 1
                 #print("warm started streak for", streamer, "stream started at", timestamp)
             else:
-                notyetextendedstreaks += 1
-                print("NOT YET EXTENDED STREAK FOR", streamer, "stream started at", timestamp)
+                channelid = channelids.get(streamer.lower(), streamer)
+                if channelid in streamerorder:
+                    order = streamerorder[channelid]
+                    if order == "":
+                        order = -1
+                else:
+                    print(streamer, "not found during miner startup")
+                    streamerorder[channelid] = ""
+                    order = -1
+                notyetextendedstreaks.append((streamer, timestamp, order))
         else:
             maintainedstreaksonline += 1
             #print("maintained streak for", streamer, "stream started at", timestamp)
     else:
         #print("went offline at", nextoffline["timestamp"])
         pass
+for (streamer, timestamp, order) in sorted(notyetextendedstreaks, key=lambda x: x[-1], reverse=True):
+    print("NOT YET EXTENDED STREAK FOR", streamer, "stream started at", timestamp)
 
+print("script run at", datetime.now())
 print(maybemissedstreaks, "streaks possibly missed")
 print(warmstartedstreaksoffline, "streaks warm started in finished streams")
 print(maintainedstreaksoffline, "streaks maintained in finished streams")
 print(shortgaps, "short offline gaps")
-print(notyetextendedstreaks, "streaks not yet extended for now-online streams")
+print(len(notyetextendedstreaks), "streaks not yet extended for now-online streams")
 print(warmstartedstreaksonline, "streaks warm started for now-online streams")
 print(maintainedstreaksonline, "streaks maintained in now-online streams")
