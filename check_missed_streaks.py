@@ -241,20 +241,34 @@ for on in onlines:
         points = [lines[i] for i in streamrange if re.match(pointsregex, lines[i])]
         #print(points)
         if len(points) == 0:
-            if createdAt and achievementAt and achievementAt > createdAt:
-                warmstartedstreaksonline += 1
-                #print("warm started streak for", streamer, "stream started at", timestamp)
-            else:
-                channelid = channelids.get(streamer.lower(), streamer)
-                if channelid in streamerorder:
-                    order = streamerorder[channelid]
-                    if order == "":
-                        order = -1
+            streakregex = r"\[INFO\] (.*): 🚀 \+[34][05]0 → " + re.escape(streamer) + r" \(.* points\) - Reason: WATCH_STREAK"
+            streak = [lines[i] for i in streamrange if re.match(streakregex, lines[i])]
+            if len(streak) == 0:
+                if createdAt and achievementAt and achievementAt > createdAt:
+                    warmstartedstreaksonline += 1
+                    #print("warm started streak for", streamer, "stream started at", timestamp)
                 else:
-                    print(streamer, "not found during miner startup")
-                    streamerorder[channelid] = ""
-                    order = -1
-                notyetextendedstreaks.append((streamer, timestamp, order))
+                    channelid = channelids.get(streamer.lower(), streamer)
+                    if channelid in streamerorder:
+                        order = streamerorder[channelid]
+                        if order == "":
+                            order = -1
+                    else:
+                        print(streamer, "not found during miner startup")
+                        streamerorder[channelid] = ""
+                        order = -1
+                    notyetextendedstreaks.append((streamer, timestamp, order))
+            else:
+                # earning WATCH_STREAK after about a minute of watch time without
+                # corresponding WATCH points started happening around 9/22/2026
+                # (also started only needing to watch a vod for 1 minute to save a streak...)
+                timestamps = ""
+                for line in streak:
+                    timestamps += str(datetime.strptime(re.match(streakregex, line).group(1), timeformat))
+                    timestamps += ", "
+                timestamps += "but not WATCH points"
+                print("earned WATCH_STREAK for", streamer, "at", timestamps)
+                maintainedstreaksonline += 1
         else:
             maintainedstreaksonline += 1
             #print("maintained streak for", streamer, "stream started at", timestamp)
