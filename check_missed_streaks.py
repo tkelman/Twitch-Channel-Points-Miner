@@ -140,6 +140,7 @@ with (Path(__file__).parent / "log" / "numonline.csv").open("w") as f:
 maybemissedstreaks = 0
 maintainedstreaksoffline = 0
 warmstartedstreaksoffline = 0
+streakonly = 0
 prevofflines = {}
 for off in offlines:
     timestamp = off["timestamp"]
@@ -180,18 +181,34 @@ for off in offlines:
                 #print("warm started streak for", streamer, "stream from",
                 #    mostrecentonline["timestamp"], "to", timestamp)
             else:
-                maybemissedstreaks += 1
+                maybemissed = True
                 extra = ""
                 if "streaklen" in off and "streaklen" in mostrecentonline:
                     if off["streaklen"] == 0 and mostrecentonline["streaklen"] == 0:
                         extra += "streak len 0 -> 0 "
                     elif off["streaklen"] == mostrecentonline["streaklen"] + 1:
                         extra += "pubsub outage?"
-                mostrecentontime = mostrecentonline.get("createdAt", mostrecentonline["timestamp"])
-                if (timestamp - mostrecentontime.replace(tzinfo=None)).total_seconds() <= 480:
-                    extra += "SHORT"
-                print("POSSIBLE MISSED STREAK FOR", streamer, "stream from",
-                    mostrecentonline["timestamp"], "to", timestamp, extra)
+                        streakregex = r"\[INFO\] (.*): 🚀 \+[34][05]0 → " + re.escape(streamer) + r" \(.* points\) - Reason: WATCH_STREAK"
+                        streak = [lines[i] for i in streamrange if re.match(streakregex, lines[i])]
+                        if len(streak) > 0:
+                            maybemissed = False
+                            # earning WATCH_STREAK after about a minute of watch time without
+                            # corresponding WATCH points started happening around 9/22/2026
+                            # (also started only needing to watch a vod for 1 minute to save a streak...)
+                            streakonly += 1
+                            timestamps = ""
+                            for line in streak:
+                                timestamps += str(datetime.strptime(re.match(streakregex, line).group(1), timeformat))
+                                timestamps += ", "
+                            timestamps += "but not WATCH points"
+                            print("earned WATCH_STREAK for", streamer, "at", timestamps)
+                if maybemissed:
+                    maybemissedstreaks += 1
+                    mostrecentontime = mostrecentonline.get("createdAt", mostrecentonline["timestamp"])
+                    if (timestamp - mostrecentontime.replace(tzinfo=None)).total_seconds() <= 480:
+                        extra += "SHORT"
+                    print("POSSIBLE MISSED STREAK FOR", streamer, "stream from",
+                        mostrecentonline["timestamp"], "to", timestamp, extra)
         else:
             maintainedstreaksoffline += 1
             if "streaklen" in off and "streaklen" in mostrecentonline:
@@ -262,6 +279,7 @@ for on in onlines:
                 # earning WATCH_STREAK after about a minute of watch time without
                 # corresponding WATCH points started happening around 9/22/2026
                 # (also started only needing to watch a vod for 1 minute to save a streak...)
+                streakonly += 1
                 timestamps = ""
                 for line in streak:
                     timestamps += str(datetime.strptime(re.match(streakregex, line).group(1), timeformat))
@@ -286,3 +304,4 @@ print(shortgaps, "short offline gaps")
 print(len(notyetextendedstreaks), "streaks not yet extended for now-online streams")
 print(warmstartedstreaksonline, "streaks warm started for now-online streams")
 print(maintainedstreaksonline, "streaks maintained in now-online streams")
+print(streakonly, "streaks extended without earning WATCH points")
